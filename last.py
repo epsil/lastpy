@@ -19,11 +19,12 @@ selects the sorting.
     last.py in1.m3u in2.m3u > out.m3u
     last.py -m shuffle in1.m3u in2.m3u > out.m3u
     last.py -g dir in1.m3u in2.m3u > out.m3u
-    last.py -s id in1.m3u in2.m3u > out.m3u
+    last.py -s none in1.m3u in2.m3u > out.m3u
 
-To install, fetch the eyeD3 and bs4 libraries:
+To install, fetch the eventlet, eyeD3 and bs4 libraries:
 
-    pip install eyeD3-pip      # or: sudo apt-get install eyed3
+    pip install eventlet  # or: sudo apt-get install python-eventlet
+    pip install eyeD3-pip # or: sudo apt-get install eyed3
     pip install beautifulsoup4
 
 Then chmod +x and symlink to /usr/local/bin/last.py.
@@ -38,8 +39,9 @@ import subprocess
 import sys
 import time
 import urllib
-import eyeD3
-from bs4 import BeautifulSoup
+import eventlet               # timeout
+import eyeD3                  # ID3 reading
+from bs4 import BeautifulSoup # XML/HTML parsing
 
 API = ''    # insert key here
 
@@ -64,7 +66,8 @@ def loaddirectory(path):
     files = []
     for root, dirnames, filenames in os.walk(path):
         for filename in fnmatch.filter(filenames, '*.[Mm][Pp]3'):
-            files.append(os.path.join(root, filename))
+            file = os.path.join(root, filename)
+            files.append(os.path.relpath(file))
     files.sort()
     return files
 
@@ -219,20 +222,26 @@ def id3(path):
 # requires a valid API key, otherwise lastfmhtml() is used instead
 def lastfmxml(artist, track, correct=True, api=API):
     """Fetch a track's Last.fm playcount."""
+    if not artist or not track: return -1
+    count = 0
+    correct = 1 if correct else 0
+    url = 'http://ws.audioscrobbler.com/2.0/?'
+    url += urllib.urlencode([('method',      'track.getInfo'),
+                             ('api_key',     api),
+                             ('artist',      artist),
+                             ('track',       track),
+                             ('autocorrect', correct)])
     try:
-        count = 0
-        correct = 1 if correct else 0
-        url = 'http://ws.audioscrobbler.com/2.0/?'
-        url += urllib.urlencode([('method',      'track.getInfo'),
-                                 ('api_key',     api),
-                                 ('artist',      artist),
-                                 ('track',       track),
-                                 ('autocorrect', correct)])
-        file = urllib.urlopen(url)
-        soup = BeautifulSoup(file)
-        node = soup.find('playcount')
-        file.close()
-        count = int(node.get_text())
+        retry = 5
+        while retry > 0:
+            with eventlet.timeout.Timeout(30):
+                file = urllib.urlopen(url)
+                soup = BeautifulSoup(file)
+                node = soup.find('playcount')
+                file.close()
+                count = int(node.get_text())
+                retry = 0
+            retry =- 1
     except:
         # something went wrong (connection error?),
         # return negative value to notify the caller
@@ -243,16 +252,22 @@ def lastfmxml(artist, track, correct=True, api=API):
 # fall-back: scrape the playcount off the track's webpage
 def lastfmhtml(artist, track):
     """Scrape a track's Last.fm playcount."""
+    if not artist or not track: return -1
+    count = 0
+    url = ('http://www.last.fm/music/%s/_/%s' %
+           (urllib.quote_plus(artist), urllib.quote_plus(track)))
     try:
-        count = 0
-        url = ('http://www.last.fm/music/%s/_/%s' %
-               (urllib.quote_plus(artist), urllib.quote_plus(track)))
-        file = urllib.urlopen(url)
-        soup = BeautifulSoup(file)
-        node = soup.find('li', 'scrobbles')
-        file.close()
-        match = re.search('[0-9,]+', node.get_text())
-        count = int(match.group().replace(',', ''))
+        retry = 5
+        while retry > 0:
+            with eventlet.timeout.Timeout(30):
+                file = urllib.urlopen(url)
+                soup = BeautifulSoup(file)
+                node = soup.find('li', 'scrobbles')
+                file.close()
+                match = re.search('[0-9,]+', node.get_text())
+                count = int(match.group().replace(',', ''))
+                retry = 0
+            retry =- 1
     except:
         return -1
     else:
@@ -523,6 +538,7 @@ sorts = { 'lastfm' : lastfm,
           'last-fm' : lastfm,
 
           'id' : deletedup,
+          'identity' : deletedup,
           'none' : deletedup }
 
 # Main function
