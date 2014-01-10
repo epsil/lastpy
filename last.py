@@ -21,10 +21,9 @@ selects the sorting.
     last.py -g dir in1.m3u in2.m3u > out.m3u
     last.py -s none in1.m3u in2.m3u > out.m3u
 
-To install, fetch the eventlet, eyeD3 and bs4 libraries:
+To install, fetch the eyeD3 and bs4 libraries:
 
-    pip install eventlet  # or: sudo apt-get install python-eventlet
-    pip install eyeD3-pip # or: sudo apt-get install eyed3
+    pip install eyeD3-pip      # or: sudo apt-get install eyed3
     pip install beautifulsoup4
 
 Then chmod +x and symlink to /usr/local/bin/last.py.
@@ -32,6 +31,7 @@ Then chmod +x and symlink to /usr/local/bin/last.py.
 
 import fnmatch
 import getopt
+import multiprocessing
 import os
 import random
 import re
@@ -39,9 +39,8 @@ import subprocess
 import sys
 import time
 import urllib
-import eventlet               # timeout
-import eyeD3                  # ID3 reading
-from bs4 import BeautifulSoup # XML/HTML parsing
+import eyeD3 # ID3 reading
+import bs4   # XML/HTML parsing
 
 API = ''    # insert key here
 
@@ -220,10 +219,11 @@ def id3(path):
         return artist, track
 
 # requires a valid API key, otherwise lastfmhtml() is used instead
-def lastfmxml(artist, track, correct=True, api=API):
+def lastfmxml(artist, track, correct=True, api=''):
     """Fetch a track's Last.fm playcount."""
     if not artist or not track: return -1
     count = 0
+    api = API if not api else api
     correct = 1 if correct else 0
     url = 'http://ws.audioscrobbler.com/2.0/?'
     url += urllib.urlencode([('method',      'track.getInfo'),
@@ -232,22 +232,17 @@ def lastfmxml(artist, track, correct=True, api=API):
                              ('track',       track),
                              ('autocorrect', correct)])
     try:
-        retry = 5
-        while retry > 0:
-            with eventlet.timeout.Timeout(30):
-                file = urllib.urlopen(url)
-                soup = BeautifulSoup(file)
-                node = soup.find('playcount')
-                file.close()
+        file = urllib.urlopen(url)
+        try:
+            soup = bs4.BeautifulSoup(file)
+            node = soup.find('playcount')
+            if node:
                 count = int(node.get_text())
-                retry = 0
-            retry =- 1
-    except:
-        # something went wrong (connection error?),
-        # return negative value to notify the caller
+        finally:
+            file.close()
+    except IOError:
         return -1
-    else:
-        return count
+    return count
 
 # fall-back: scrape the playcount off the track's webpage
 def lastfmhtml(artist, track):
@@ -257,28 +252,36 @@ def lastfmhtml(artist, track):
     url = ('http://www.last.fm/music/%s/_/%s' %
            (urllib.quote_plus(artist), urllib.quote_plus(track)))
     try:
-        retry = 5
-        while retry > 0:
-            with eventlet.timeout.Timeout(30):
-                file = urllib.urlopen(url)
-                soup = BeautifulSoup(file)
-                node = soup.find('li', 'scrobbles')
-                file.close()
+        file = urllib.urlopen(url)
+        try:
+            soup = bs4.BeautifulSoup(file)
+            node = soup.find('li', 'scrobbles')
+            if node:
                 match = re.search('[0-9,]+', node.get_text())
-                count = int(match.group().replace(',', ''))
-                retry = 0
-            retry =- 1
-    except:
+                if match:
+                    count = int(match.group().replace(',', ''))
+        finally:
+            file.close()
+    except IOError:
         return -1
-    else:
-        return count
+    return count
 
 def lastmcount(artist, track):
     """Return the Last.fm playcount for a track."""
-    if API:
-        return lastfmxml(artist, track, True, API)
-    else:
-        return lastfmhtml(artist, track)
+    func = lastfmxml if API else lastfmhtml
+    pool = multiprocessing.Pool(1, maxtasksperchild=1)
+    count = -1
+    retry = 5
+    while retry > 0:
+        try:
+            result = pool.apply_async(func, (artist, track))
+            count = result.get(timeout=30)
+            retry = 0
+        except multiprocessing.TimeoutError:
+            retry =- 1
+        finally:
+            pool.terminate()
+    return count
 
 # Merge functions
 

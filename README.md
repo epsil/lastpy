@@ -6,10 +6,9 @@ Sort MP3 files by Last.fm total plays (scrobbles by all listeners).
 Installation
 ------------
 
-`last.py` requires the `eventlet`, `eyeD3` and `bs4` libraries:
+`last.py` requires the `eyeD3` and `bs4` libraries:
 
-    pip install eventlet  # or: sudo apt-get install python-eventlet
-    pip install eyeD3-pip # or: sudo apt-get install eyed3
+    pip install eyeD3-pip      # or: sudo apt-get install eyed3
     pip install beautifulsoup4
 
 Then make the script executable and copy it to a suitable location in
@@ -43,8 +42,8 @@ their tracks:
     last.py -m merge playlist.m3u
 
 This picks the top five tracks from the top five artists, followed by
-the top five tracks from the second top five artists, and so on. For a
-more randomized output, use the `shuffle` merging method:
+the top five tracks from the next five artists, and so on. For a more
+randomized output, use the `shuffle` merging method:
 
     last.py -m shuffle playlist.m3u
 
@@ -62,7 +61,7 @@ option to disable Last.fm sorting altogether:
 Miscellaneous
 -------------
 
-To leverage the Last.fm XML [API](http://www.last.fm/api), a free API
+To leverage Last.fm's free XML [API](http://www.last.fm/api), an API
 key must be pasted into the beginning of the script:
 
     API = ''    # insert key here
