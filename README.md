@@ -1,7 +1,7 @@
 last.py
 =======
 
-Sort MP3 files by Last.fm total plays (scrobbles by all listeners).
+Sort MP3 files by Last.fm total plays or listeners.
 
 Installation
 ------------
@@ -52,9 +52,13 @@ ID3 tag. A different grouping can be specified with the `-g` option:
 
     last.py -m shuffle -g dir playlist.m3u
 
-This groups the files by folder. To only invoke the merging part of
-the script (maybe when processing a presorted list), use the `-s`
-option to disable Last.fm sorting altogether:
+This groups the files by folder. To sort by the number of listeners
+instead of the number of plays, use the `-s` option:
+
+    last.py -m shuffle -s listeners playlist.m3u
+
+The `-s` option can also be used to disable Last.fm sorting altogether
+(maybe when processing a presorted list):
 
     last.py -m shuffle -s none playlist.m3u
 
@@ -66,11 +70,11 @@ key must be pasted into the beginning of the script:
 
     API = ''    # insert key here
 
-Otherwise, the script will scrape the playcount off the webpage of
-each track, which is much slower.
+Otherwise, the script will scrape the ratings off Last.fm's webpages,
+which is much slower.
 
-Since the script fetches each track's playcount separately, processing
-a large playlist may take some time. Last.fm's
+Since the script fetches each track's rating separately, processing a
+large playlist may take some time. Last.fm's
 [terms of service](http://www.last.fm/api/tos) limit the number of
 requests to 5 per second (averaged over a 5 minute period), so the
 script takes regular breaks to avoid overloading the server.

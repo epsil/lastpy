@@ -219,7 +219,7 @@ def id3(path):
         return artist, track
 
 # requires a valid API key, otherwise lastfmhtml() is used instead
-def lastfmxml(artist, track, correct=True, api=''):
+def lastfmxml(artist, track, listeners=False, correct=True, api=''):
     """Fetch a track's Last.fm playcount."""
     if not artist or not track: return -1
     count = 0
@@ -235,7 +235,10 @@ def lastfmxml(artist, track, correct=True, api=''):
         file = urllib.urlopen(url)
         try:
             soup = bs4.BeautifulSoup(file)
-            node = soup.find('playcount')
+            if listeners:
+                node = soup.find('listeners')
+            else:
+                node = soup.find('playcount')
             if node:
                 count = int(node.get_text())
         finally:
@@ -245,7 +248,7 @@ def lastfmxml(artist, track, correct=True, api=''):
     return count
 
 # fall-back: scrape the playcount off the track's webpage
-def lastfmhtml(artist, track):
+def lastfmhtml(artist, track, listeners=False):
     """Scrape a track's Last.fm playcount."""
     if not artist or not track: return -1
     count = 0
@@ -255,7 +258,10 @@ def lastfmhtml(artist, track):
         file = urllib.urlopen(url)
         try:
             soup = bs4.BeautifulSoup(file)
-            node = soup.find('li', 'scrobbles')
+            if listeners:
+                node = soup.find('li', 'listeners')
+            else:
+                node = soup.find('li', 'scrobbles')
             if node:
                 match = re.search('[0-9,]+', node.get_text())
                 if match:
@@ -266,15 +272,15 @@ def lastfmhtml(artist, track):
         return -1
     return count
 
-def lastmcount(artist, track):
-    """Return the Last.fm playcount for a track."""
+def lastfmrating(artist, track, listeners=False):
+    """Return the Last.fm rating for a track."""
     func = lastfmxml if API else lastfmhtml
     pool = multiprocessing.Pool(1, maxtasksperchild=1)
     count = -1
     retry = 5
     while retry > 0:
         try:
-            result = pool.apply_async(func, (artist, track))
+            result = pool.apply_async(func, (artist, track, listeners))
             count = result.get(timeout=30)
             retry = 0
         except multiprocessing.TimeoutError:
@@ -282,6 +288,27 @@ def lastmcount(artist, track):
         finally:
             pool.terminate()
     return count
+
+def lastfmsort(xs, listeners=False):
+    """Sort tracks by Last.fm rating."""
+    total = len(xs)
+    num = 1
+    result = []
+    for x in xs:
+        artist, track = id3(x)
+        count = lastfmrating(artist, track, listeners)
+        count = count if count >= 0 else 0
+        print('#%s/%s:\t%s\t%s - %s' %
+              (str(num).zfill(len(str(total))),
+               total, count, artist, track))
+        # don't make more than 5 requests per second
+        # (averaged over a 5 minute period)
+        if num % 100 == 0:
+            time.sleep(10)
+        num += 1
+        result.append((x, count))
+    result = sorted(result, key=lambda x: x[1], reverse=True)
+    return [x for x, c in result]
 
 # Merge functions
 
@@ -305,9 +332,13 @@ def interleaveshuffle(xss):
 
 def mergewindow(m, n, xss):
     """Interleave n tracks from m playlists."""
+    return performmerge(xss, m, n, False)
+
+def slidingwindow(m, n, xss):
+    """Interleave n tracks from m playlists."""
     return performmerge(xss, m, n, False, 1)
 
-def mergewindowshuffle(m, n, xss):
+def shufflewindow(m, n, xss):
     """Randomly interleave n tracks from m playlists."""
     return performmerge(xss, m, n, True)
 
@@ -315,9 +346,13 @@ def merge5x5(xss):
     """Merge five artists at a time."""
     return mergewindow(5, 5, xss)
 
+def slide5x5(xss):
+    """Slide five artists at a time."""
+    return slidingwindow(5, 5, xss)
+
 def shuffle5x5(xss):
     """Shuffle five artists at a time."""
-    return mergewindowshuffle(5, 5, xss)
+    return shufflewindow(5, 5, xss)
 
 def union(xss):
     """
@@ -440,26 +475,13 @@ def deletedups(xss):
 
 # Sort functions
 
-def lastfm(xs):
+def lastfmplaycount(xs):
     """Sort tracks by Last.fm playcount."""
-    total = len(xs)
-    num = 1
-    result = []
-    for x in xs:
-        artist, track = id3(x)
-        count = lastmcount(artist, track)
-        count = count if count >= 0 else 0
-        print('#%s/%s:\t%s\t%s - %s' %
-              (str(num).zfill(len(str(total))),
-               total, count, artist, track))
-        # don't make more than 5 requests per second
-        # (averaged over a 5 minute period)
-        if num % 100 == 0:
-            time.sleep(10)
-        num += 1
-        result.append((x, count))
-    result = sorted(result, key=lambda x: x[1], reverse=True)
-    return [x for x, c in result]
+    return lastfmsort(xs, False)
+
+def lastfmlisteners(xs):
+    """Sort tracks by Last.fm playcount."""
+    return lastfmsort(xs, True)
 
 def deletedup(xs):
     """Delete duplicates in a playlist."""
@@ -473,19 +495,19 @@ def deletedup(xs):
 
 def norm(xss):
     """"Normalize" a mixed playlist by merging five artists at a time."""
-    return merge5x5(group(xss))
+    return slide5x5(group(xss))
 
 def normprefix(xss):
     """"Normalize" a mixed playlist by merging five playlists at a time."""
-    return merge5x5(groupprefix(xss))
+    return slide5x5(groupprefix(xss))
 
 def normalize(xss):
     """Sort tracks by Last.fm playcount and normalize the playlist."""
-    return norm([lastfm(xss)])
+    return norm([lastfmplaycount(xss)])
 
 def normalizeprefix(xss):
     """Sort tracks by Last.fm playcount and normalize the playlist."""
-    return normprefix([lastfm(xss)])
+    return normprefix([lastfmplaycount(xss)])
 
 # Aliases
 
@@ -501,8 +523,12 @@ merges = { 'append' : join,
            'interleave-shuffle' : interleaveshuffle,
            'merge-shuffle' : interleaveshuffle,
 
-           '5x5' : merge5x5,
            'merge' : merge5x5,
+           'merge5x5' : merge5x5,
+           '5x5merge' : merge5x5,
+
+           '5x5' : slide5x5,
+           'slide' : slide5x5,
 
            '5x5shuffle' : shuffle5x5,
            'shuffle5x5' : shuffle5x5,
@@ -536,9 +562,14 @@ groups = { 'artist' : groupartist,
            'directory' : groupprefix,
            'dir' : groupprefix }
 
-sorts = { 'lastfm' : lastfm,
-          'last.fm' : lastfm,
-          'last-fm' : lastfm,
+sorts = { 'lastfm' : lastfmplaycount,
+          'last.fm' : lastfmplaycount,
+          'last-fm' : lastfmplaycount,
+          'playcount' : lastfmplaycount,
+          'plays' : lastfmplaycount,
+
+          'listeners' : lastfmlisteners,
+          'listens' : lastfmlisteners,
 
           'id' : deletedup,
           'identity' : deletedup,
@@ -551,7 +582,7 @@ def main():
 
     merge = join
     group = deletedups
-    sort = lastfm
+    sort = lastfmplaycount
 
     opts, args = getopt.getopt(sys.argv[1:], 'a:m:g:s:o:',
                                ['api=',
@@ -564,21 +595,23 @@ def main():
         if o in ('-a', '--api'):
             API = v
         if o in ('-m', '--merge'):
-            MERGE = v
-            merge = merges[MERGE.lower()]
+            MERGE = v.lower().strip()
+            merge = merges[MERGE]
         elif o in ('-g', '--group'):
-            GROUP = v
-            group = groups[GROUP.lower()]
+            GROUP = v.lower().strip()
+            group = groups[GROUP]
         elif o in ('-s', '--sort'):
-            SORT = v
-            sort = sorts[SORT.lower()]
+            SORT = v.lower().strip()
+            sort = sorts[SORT]
         elif o in ('-o', '--output'):
             OUTPUT = v
 
+    if MERGE and not GROUP:
+        group = groupartist
     if GROUP and not MERGE:
-        merge = merge5x5
-    if SORT and not MERGE and not GROUP:
-        merge = merge5x5
+        merge = slide5x5
+    if SORT and not (MERGE and GROUP):
+        merge = slide5x5
         group = groupprefix
 
     xss = map(load, args)
