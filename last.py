@@ -14,12 +14,13 @@ Or with the -o option:
 
 The -m option can be used to select the merging algorithm.
 The -g option selects the grouping method and the -s option
-selects the sorting.
+selects the sorting. The -b option specifies the base directory.
 
     last.py in1.m3u in2.m3u > out.m3u
     last.py -m shuffle in1.m3u in2.m3u > out.m3u
     last.py -g dir in1.m3u in2.m3u > out.m3u
     last.py -s none in1.m3u in2.m3u > out.m3u
+    last.py -b . in1.m3u in2.m3u > out.m3u
 
 To install, fetch the eyeD3 and bs4 libraries:
 
@@ -47,6 +48,7 @@ API = ''    # insert key here
 MERGE = ''  # merge function
 GROUP = ''  # group function
 SORT = ''   # sort function
+BASE = ''   # base directory
 OUTPUT = '' # output file
 
 def load(path):
@@ -54,9 +56,10 @@ def load(path):
     if os.path.isdir(path):
         xs = loaddirectory(path)
     else:
+        dir = os.path.abspath(os.path.dirname(path))
         file = open(path, 'rU')
-        xs = [line.strip() for line in file
-              if not re.match('^#', line)]
+        xs = [os.path.normpath(os.path.join(dir, line.strip()))
+              for line in file if not re.match('^#', line)]
         file.close
     return xs
 
@@ -65,8 +68,7 @@ def loaddirectory(path):
     files = []
     for root, dirnames, filenames in os.walk(path):
         for filename in fnmatch.filter(filenames, '*.[Mm][Pp]3'):
-            file = os.path.join(root, filename)
-            files.append(os.path.relpath(file))
+            files.append(os.path.join(root, filename))
     files.sort()
     return files
 
@@ -74,8 +76,12 @@ def tostring(xs):
     """Convert a playlist to a string."""
     return '\n'.join(xs)
 
-def write(xs, file=None):
+def write(xs, file=None, base=''):
     """Write a playlist to file or standard output."""
+    if base:
+        xs = [os.path.relpath(x, base) for x in xs]
+    else:
+        xs = [os.path.abspath(x) for x in xs]
     str = tostring(xs)
     print(str)
     if file:
@@ -90,20 +96,20 @@ class RandomGenerator:
         self.history =  [] # list of previous outcomes
         random.seed() # seed the random number generator
 
-    def random(self):
+    def choice(self):
         """Get a fair outcome."""
         if self.size() <= 2:
-            return self.outcome()
+            return self.random()
         else:
             while len(self.history) > self.size() / 2:
                 self.history.pop()
-            x = self.outcome()
+            x = self.random()
             while x in self.history:
-                x = self.outcome()
+                x = self.random()
             self.history.insert(0, x)
             return x
 
-    def outcome(self):
+    def random(self):
         """Get a random outcome."""
         size = len(self.outcomes)
         if size == 0:
@@ -133,9 +139,9 @@ class RandomGenerator:
         if x in self.history:
             self.history[self.history.index(x)] = y
 
-def performmerge(xss, window, pick, random=False, init=0):
+def performmerge(xss, window, pick, rand=False, init=0):
     """Merge tracks from playlists by interleaving or random choice."""
-    random = RandomGenerator() if random == True else random
+    rand = RandomGenerator() if rand == True else rand
     q = []
     result = []
     size = init if init > 0 else window
@@ -145,14 +151,14 @@ def performmerge(xss, window, pick, random=False, init=0):
         for xs, c in q:
             if xs:
                 r.append((xs, c))
-            elif random: random.remove(xs)
+            elif rand: rand.remove(xs)
         q = r
         # put playlist back in xss
         if pick > 0 and xss:
             r = []
             for xs, c in q:
                 if c >= pick:
-                    if random: random.remove(xs)
+                    if rand: rand.remove(xs)
                     xss.append(xs)
                 else:
                     r.append((xs, c))
@@ -160,14 +166,14 @@ def performmerge(xss, window, pick, random=False, init=0):
         # insert playlist into q
         while xss and (window <= 0 or len(q) < size):
             xs = xss.pop(0)
-            if random: random.insert(xs)
+            if rand: rand.insert(xs)
             q.append((xs, 0))
         # increase window size
         if size < window:
             size += 1
         # add track to result
-        if q and random:
-            xs = random.random()
+        if q and rand:
+            xs = rand.choice()
             x = xs.pop(0)
             result.append(x)
             q = [(lst, c + 1 if lst == xs else c) for lst, c in q]
@@ -240,7 +246,9 @@ def lastfmxml(artist, track, listeners=False, correct=True, api=''):
             else:
                 node = soup.find('playcount')
             if node:
-                count = int(node.get_text())
+                txt = node.get_text()
+                if txt:
+                    count = int(txt)
         finally:
             file.close()
     except IOError:
@@ -263,9 +271,13 @@ def lastfmhtml(artist, track, listeners=False):
             else:
                 node = soup.find('li', 'scrobbles')
             if node:
-                match = re.search('[0-9,]+', node.get_text())
-                if match:
-                    count = int(match.group().replace(',', ''))
+                txt = node.get_text()
+                if txt:
+                    match = re.search('[0-9,]+', txt)
+                    if match:
+                        txt = match.group().replace(',', '')
+                        if txt:
+                            count = int(txt)
         finally:
             file.close()
     except IOError:
@@ -523,12 +535,15 @@ merges = { 'append' : join,
            'interleave-shuffle' : interleaveshuffle,
            'merge-shuffle' : interleaveshuffle,
 
-           'merge' : merge5x5,
-           'merge5x5' : merge5x5,
            '5x5merge' : merge5x5,
+           'merge5x5' : merge5x5,
+           'merge' : merge5x5,
 
            '5x5' : slide5x5,
+           '5x5slide' : slide5x5,
+           'slide5x5' : slide5x5,
            'slide' : slide5x5,
+           'sliding' : slide5x5,
 
            '5x5shuffle' : shuffle5x5,
            'shuffle5x5' : shuffle5x5,
@@ -578,14 +593,15 @@ sorts = { 'lastfm' : lastfmplaycount,
 # Main function
 
 def main():
-    global API, MERGE, GROUP, SORT, OUTPUT, merges, groups, sorts
+    global API, MERGE, GROUP, SORT, BASE, OUTPUT, merges, groups, sorts
 
     merge = join
     group = deletedups
     sort = lastfmplaycount
 
-    opts, args = getopt.getopt(sys.argv[1:], 'a:m:g:s:o:',
+    opts, args = getopt.getopt(sys.argv[1:], 'a:b:m:g:s:o:',
                                ['api=',
+                                'base=',
                                 'merge=',
                                 'group=',
                                 'sort=',
@@ -594,6 +610,8 @@ def main():
     for o, v in opts:
         if o in ('-a', '--api'):
             API = v
+        if o in ('-b', '--base'):
+            BASE = v
         if o in ('-m', '--merge'):
             MERGE = v.lower().strip()
             merge = merges[MERGE]
@@ -610,14 +628,14 @@ def main():
         group = groupartist
     if GROUP and not MERGE:
         merge = slide5x5
-    if SORT and not (MERGE and GROUP):
+    if SORT and not (MERGE or GROUP):
         merge = slide5x5
         group = groupprefix
 
     xss = map(load, args)
     result = merge(group(map(sort, xss)))
 
-    write(result, OUTPUT)
+    write(result, OUTPUT, BASE)
 
 if __name__ == '__main__':
     main()

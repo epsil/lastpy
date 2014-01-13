@@ -62,6 +62,13 @@ The `-s` option can also be used to disable Last.fm sorting altogether
 
     last.py -m shuffle -s none playlist.m3u
 
+By default, file paths are absolute. For relative paths, specify the
+base directory with the `-b` option:
+
+    last.py -b . playlist.m3u
+
+This outputs all paths relative to the current directory (`.`).
+
 Miscellaneous
 -------------
 
