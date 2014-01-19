@@ -50,17 +50,19 @@ randomized output, use the `shuffle` merging method:
 By default, the merging is based on grouping tracks by their `Artist`
 ID3 tag. A different grouping can be specified with the `-g` option:
 
-    last.py -m shuffle -g dir playlist.m3u
+    last.py -g dir -m shuffle playlist.m3u
 
 This groups the files by folder. To sort by the number of listeners
 instead of the number of plays, use the `-s` option:
 
-    last.py -m shuffle -s listeners playlist.m3u
+    last.py -s listeners -m shuffle playlist.m3u
 
-The `-s` option can also be used to disable Last.fm sorting altogether
-(maybe when processing a presorted list):
+If `-g` is specified before `-s`, the script will group tracks and
+then sort them; otherwise it will sort tracks before grouping them
+(the default). The `-s` option can also be used to disable Last.fm
+sorting altogether (maybe when processing a presorted list):
 
-    last.py -m shuffle -s none playlist.m3u
+    last.py -s none -m shuffle playlist.m3u
 
 By default, file paths are absolute. For relative paths, specify the
 base directory with the `-b` option:

@@ -48,6 +48,7 @@ API = ''    # insert key here
 MERGE = ''  # merge function
 GROUP = ''  # group function
 SORT = ''   # sort function
+GSORT = ''  # group then sort
 BASE = ''   # base directory
 OUTPUT = '' # output file
 
@@ -593,7 +594,8 @@ sorts = { 'lastfm' : lastfmplaycount,
 # Main function
 
 def main():
-    global API, MERGE, GROUP, SORT, BASE, OUTPUT, merges, groups, sorts
+    global API, MERGE, GROUP, SORT, GSORT, BASE, OUTPUT
+    global merges, groups, sorts
 
     merge = join
     group = deletedups
@@ -621,6 +623,7 @@ def main():
         elif o in ('-s', '--sort'):
             SORT = v.lower().strip()
             sort = sorts[SORT]
+            if GROUP: GSORT = True
         elif o in ('-o', '--output'):
             OUTPUT = v
 
@@ -628,12 +631,16 @@ def main():
         group = groupartist
     if GROUP and not MERGE:
         merge = slide5x5
-    if SORT and not (MERGE or GROUP):
+    if SORT and (sort != deletedup) and not (MERGE or GROUP):
         merge = slide5x5
         group = groupprefix
 
     xss = map(load, args)
-    result = merge(group(map(sort, xss)))
+
+    if GSORT:
+        result = merge(map(sort, group(xss)))
+    else:
+        result = merge(group(map(sort, xss)))
 
     write(result, OUTPUT, BASE)
 
