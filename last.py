@@ -90,6 +90,23 @@ def write(xs, file=None, base=''):
         f.write(str + '\n')
         f.close
 
+def subrange(xs):
+    """Find the lowest contiguous decreasing subrange."""
+    beg = 0
+    end = 1 if xs else 0
+    i = 0
+    prev = None
+    for x in xs:
+        if prev:
+            if i == end and x == prev - 1:
+                end = i + 1
+            elif x < prev:
+                beg = i - 1 if x == prev - 1 else i
+                end = i + 1
+        i += 1
+        prev = x
+    return (beg, end)
+
 class RandomGenerator:
     """Fair random generator."""
     def __init__(self):
@@ -97,9 +114,11 @@ class RandomGenerator:
         self.history =  [] # list of previous outcomes
         random.seed() # seed the random number generator
 
-    def choice(self):
+    def choice(self, fair=True):
         """Get a fair outcome."""
-        if self.size() <= 2:
+        if not fair:
+            return self.random()
+        elif self.size() <= 2:
             return self.random()
         else:
             while len(self.history) > self.size() / 2:
@@ -140,12 +159,11 @@ class RandomGenerator:
         if x in self.history:
             self.history[self.history.index(x)] = y
 
-def performmerge(xss, window, pick, rand=False, init=0):
+def performmerge(xss, window, pick, rand=False, fair=True):
     """Merge tracks from playlists by interleaving or random choice."""
     rand = RandomGenerator() if rand == True else rand
     q = []
     result = []
-    size = init if init > 0 else window
     while q or xss:
         # remove empty tracks from q
         r = []
@@ -165,25 +183,30 @@ def performmerge(xss, window, pick, rand=False, init=0):
                     r.append((xs, c))
             q = r
         # insert playlist into q
-        while xss and (window <= 0 or len(q) < size):
+        while xss and (window <= 0 or len(q) < window):
             xs = xss.pop(0)
             if rand: rand.insert(xs)
             q.append((xs, 0))
-        # increase window size
-        if size < window:
-            size += 1
         # add track to result
         if q and rand:
-            xs = rand.choice()
+            xs = rand.choice(fair)
             x = xs.pop(0)
             result.append(x)
             q = [(lst, c + 1 if lst == xs else c) for lst, c in q]
         else:
+            if fair:
+                beg, end = subrange([c for xs, c in q])
+                chosen = q[beg:end]
+            else:
+                chosen = q
             r = []
             for xs, c in q:
-                x = xs.pop(0)
-                result.append(x)
-                r.append((xs, c + 1))
+                if (xs, c) in chosen:
+                    x = xs.pop(0)
+                    result.append(x)
+                    r.append((xs, c + 1))
+                else:
+                    r.append((xs, c))
             q = r
     return result
 
@@ -337,23 +360,23 @@ def randomize(xss):
 
 def interleave(xss):
     """Interleave playlists by alternating between them."""
-    return performmerge(xss, 0, 0, False)
+    return performmerge(xss, 0, 0, False, False)
 
 def interleaveshuffle(xss):
     """Interleave playlists by randomly alternating between them."""
-    return performmerge(xss, 0, 0, True)
+    return performmerge(xss, 0, 0, True, False)
 
 def mergewindow(m, n, xss):
     """Interleave n tracks from m playlists."""
-    return performmerge(xss, m, n, False)
+    return performmerge(xss, m, n, False, False)
 
 def slidingwindow(m, n, xss):
     """Interleave n tracks from m playlists."""
-    return performmerge(xss, m, n, False, 1)
+    return performmerge(xss, m, n, False, True)
 
 def shufflewindow(m, n, xss):
     """Randomly interleave n tracks from m playlists."""
-    return performmerge(xss, m, n, True)
+    return performmerge(xss, m, n, True, False)
 
 def merge5x5(xss):
     """Merge five artists at a time."""
