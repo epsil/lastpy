@@ -68,7 +68,6 @@ class TestFunctions(unittest.TestCase):
                           'f2', 'a7', 'b7', 'c7', 'd7',
                           'f3', 'e6', 'f4', 'e7', 'f5',
                           'f6', 'f7'])
-
         self.assertEqual(last.performmerge([['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9'],
                                             ['b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7', 'b8', 'b9'],
                                             ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9'],

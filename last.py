@@ -90,6 +90,35 @@ def write(xs, file=None, base=''):
         f.write(str + '\n')
         f.close
 
+def timeout(fn, *args, **kwargs):
+    """Call a function with a timeout."""
+    result = kwargs['fail'] if 'fail' in kwargs else -1
+    retry = kwargs['retry'] if 'retry' in kwargs else 5
+    time = kwargs['time'] if 'time' in kwargs else 30
+    pool = multiprocessing.Pool(1, maxtasksperchild=1)
+    while retry > 0:
+        try:
+            result = pool.apply_async(fn, args)
+            result = result.get(timeout=time)
+            retry = 0
+        except multiprocessing.TimeoutError:
+            retry =- 1
+        finally:
+            pool.terminate()
+    return result
+
+def id3(path):
+    """Return the artist and track title of an MP3 file."""
+    try:
+        file = eyeD3.Mp3AudioFile(path)
+        tag = file.getTag()
+        artist = unicode(tag.getArtist()).encode('utf-8').strip()
+        track = unicode(tag.getTitle()).encode('utf-8').strip()
+    except:
+        return '', ''
+    else:
+        return artist, track
+
 def subrange(xs):
     """Find the lowest contiguous decreasing subrange."""
     beg = 0
@@ -210,43 +239,57 @@ def performmerge(xss, window, pick, rand=False, fair=True):
             q = r
     return result
 
-def performgroup(xss, key=False):
+def performgroup(xs, key=None):
     """Group a playlist into several."""
-    fn = key
-    def group(xs):
-        pre = os.path.commonprefix(xs)
-        def prefix(x):
-            regexp = '^%s([^/]+)' % re.escape(pre)
-            match = re.match(regexp, x)
-            if match:
-                return match.group(1)
-            else:
-                return ''
-        key = fn if fn else prefix
-        dict = []
-        for x in deletedup(xs):
-            k = key(x)
-            if k in map(lambda x: x[0], dict):
-                dict = [(k, xs + [x]) if k == k0 else (k0, xs)
-                        for k0, xs in dict]
-            else:
-                dict.append((k, [x]))
-        return [xs for k, xs in dict]
-    xsss = map(group, xss)
-    xss = reduce(lambda x, y: x + y, xsss)
-    return xss
+    dict = []
+    key = key if key else lambda x: [x]
+    for x in deletedup(xs):
+        k = key(x)
+        if k in map(lambda x: x[0], dict):
+            dict = [(k, xs + [x]) if k == k0 else (k0, xs)
+                    for k0, xs in dict]
+        else:
+            dict.append((k, [x]))
+    return [xs for k, xs in dict]
 
-def id3(path):
-    """Return the artist and track title of an MP3 file."""
-    try:
-        file = eyeD3.Mp3AudioFile(path)
-        tag = file.getTag()
-        artist = unicode(tag.getArtist()).encode('utf-8').strip()
-        track = unicode(tag.getTitle()).encode('utf-8').strip()
-    except:
-        return '', ''
-    else:
-        return artist, track
+def deletedup(xs):
+    """Delete duplicates in a playlist."""
+    result = []
+    for x in xs:
+        if x not in result:
+            result.append(x)
+    return result
+
+def deletedups(xss):
+    """Delete duplicates in playlists."""
+    xss = map(deletedup, xss)
+    i = 0
+    for xs in xss[1:]:
+        for x in xss[i]:
+            if x in xs: xs.remove(x)
+        i += 1
+    return [xs for xs in xss if xs]
+
+def sort(xs, fn):
+    """Sort tracks by rating."""
+    total = len(xs)
+    num = 1
+    result = []
+    for x in xs:
+        artist, track = id3(x)
+        rating = timeout(fn, x)
+        rating = rating if rating >= 0 else 0
+        result.append((x, fn(x)))
+        print('#%s/%s:\t%s\t%s - %s' %
+              (str(num).zfill(len(str(total))),
+               total, rating, artist, track))
+        # don't make more than 5 requests per second
+        # (averaged over a 5 minute period)
+        if num % 100 == 0:
+            time.sleep(10)
+        num += 1
+    result = sorted(result, key=lambda x: x[1], reverse=True)
+    return [x for x, c in result]
 
 # requires a valid API key, otherwise lastfmhtml() is used instead
 def lastfmxml(artist, track, listeners=False, correct=True, api=''):
@@ -308,55 +351,17 @@ def lastfmhtml(artist, track, listeners=False):
         return -1
     return count
 
-def lastfmrating(artist, track, listeners=False):
+def lastfmrating(track, listeners=False):
     """Return the Last.fm rating for a track."""
-    func = lastfmxml if API else lastfmhtml
-    pool = multiprocessing.Pool(1, maxtasksperchild=1)
-    count = -1
-    retry = 5
-    while retry > 0:
-        try:
-            result = pool.apply_async(func, (artist, track, listeners))
-            count = result.get(timeout=30)
-            retry = 0
-        except multiprocessing.TimeoutError:
-            retry =- 1
-        finally:
-            pool.terminate()
-    return count
-
-def lastfmsort(xs, listeners=False):
-    """Sort tracks by Last.fm rating."""
-    total = len(xs)
-    num = 1
-    result = []
-    for x in xs:
-        artist, track = id3(x)
-        count = lastfmrating(artist, track, listeners)
-        count = count if count >= 0 else 0
-        print('#%s/%s:\t%s\t%s - %s' %
-              (str(num).zfill(len(str(total))),
-               total, count, artist, track))
-        # don't make more than 5 requests per second
-        # (averaged over a 5 minute period)
-        if num % 100 == 0:
-            time.sleep(10)
-        num += 1
-        result.append((x, count))
-    result = sorted(result, key=lambda x: x[1], reverse=True)
-    return [x for x, c in result]
+    artist, title = id3(track)
+    rating = lastfmxml if API else lastfmhtml
+    return rating(artist, title, listeners)
 
 # Merge functions
 
 def join(xss):
     """Chain playlists together."""
-    return reduce(lambda x, y: x + y, deletedups(xss)) if xss else []
-
-def randomize(xss):
-    """Create a randomized playlist."""
-    xs = join(xss)
-    random.shuffle(xs)
-    return xs
+    return reduce(lambda x, y: x + y, xss, [])
 
 def interleave(xss):
     """Interleave playlists by alternating between them."""
@@ -426,13 +431,13 @@ def union(xss):
                 while x in ys2: ys2.remove(x)
                 result.append(x)
         return result + xs2 + ys2
-    return reduce(union2, xss)
+    return reduce(union2, xss, [])
 
 def intersection(xss):
     """Interleave the intersection of playlists."""
     def intersection2(xs, ys):
         return [x for x in deletedup(xs) if x in ys]
-    return reduce(intersection2, xss)
+    return reduce(intersection2, xss, [])
 
 def symmetricdifference(xss):
     """Interleave the symmetric difference of playlists."""
@@ -449,13 +454,13 @@ def symmetricdifference(xss):
                 x = xs2.pop(0)
                 while x in ys2: ys2.remove(x)
         return result + xs2 + ys2
-    return reduce(diff, xss)
+    return reduce(diff, xss, [])
 
 def difference(xss):
     """Calculate the difference between two playlists."""
     def diff(xs, ys):
         return [x for x in deletedup(xs) if x not in ys]
-    return reduce(diff, xss)
+    return reduce(diff, xss, [])
 
 def overlay(xss):
     """
@@ -487,45 +492,39 @@ def overlay(xss):
                 ys2.pop(0)
                 result.append(xs2.pop(0))
         return result + xs2 + ys2
-    return reduce(overlay2, xss)
+    return reduce(overlay2, xss, [])
 
 # Group functions
 
-def groupartist(xss):
+def groupartist(xs):
     """Group a playlist on artist."""
-    return performgroup(xss, lambda x: id3(x)[0])
+    def artist(x):
+        return id3(x)[0]
+    return performgroup(xs, artist)
 
-def groupprefix(xss):
+def groupprefix(xs):
     """Group a playlist on string prefix."""
-    return performgroup(xss)
-
-def deletedups(xss):
-    """Delete duplicates in playlists."""
-    xss = map(deletedup, xss)
-    i = 0
-    for xs in xss[1:]:
-        for x in xss[i]:
-            if x in xs: xs.remove(x)
-        i += 1
-    return [xs for xs in xss if xs]
+    pre = os.path.commonprefix(xs)
+    def prefix(x):
+        regexp = '^%s([^/]+)' % re.escape(pre)
+        match = re.match(regexp, x)
+        return match.group(1) if match else ''
+    return performgroup(xs, prefix)
 
 # Sort functions
 
 def lastfmplaycount(xs):
     """Sort tracks by Last.fm playcount."""
-    return lastfmsort(xs, False)
+    return sort(xs, lastfmrating)
 
 def lastfmlisteners(xs):
     """Sort tracks by Last.fm playcount."""
-    return lastfmsort(xs, True)
+    return sort(xs, lambda x: lastfmrating(x, True))
 
-def deletedup(xs):
-    """Delete duplicates in a playlist."""
-    result = []
-    for x in xs:
-        if x not in result:
-            result.append(x)
-    return result
+def shuffle(xs):
+    """Shuffle a playlist."""
+    random.shuffle(xs)
+    return xs
 
 # Presets
 
@@ -549,9 +548,7 @@ def normalizeprefix(xss):
 
 merges = { 'append' : join,
            'join' : join,
-
-           'random' : randomize,
-           'randomize' : randomize,
+           'none' : join,
 
            'interleave' : interleave,
 
@@ -599,7 +596,9 @@ groups = { 'artist' : groupartist,
            'prefix' : groupprefix,
            'folder' : groupprefix,
            'directory' : groupprefix,
-           'dir' : groupprefix }
+           'dir' : groupprefix,
+
+           'none' : performgroup }
 
 sorts = { 'lastfm' : lastfmplaycount,
           'last.fm' : lastfmplaycount,
@@ -609,6 +608,10 @@ sorts = { 'lastfm' : lastfmplaycount,
 
           'listeners' : lastfmlisteners,
           'listens' : lastfmlisteners,
+
+          'random' : shuffle,
+          'randomize' : shuffle,
+          'shuffle' : shuffle,
 
           'id' : deletedup,
           'identity' : deletedup,
@@ -621,7 +624,7 @@ def main():
     global merges, groups, sorts
 
     merge = join
-    group = deletedups
+    group = performgroup
     sort = lastfmplaycount
 
     opts, args = getopt.getopt(sys.argv[1:], 'a:b:m:g:s:o:',
@@ -659,11 +662,12 @@ def main():
         group = groupprefix
 
     xss = map(load, args)
+    xss = deletedups(xss)
 
     if GSORT:
-        result = merge(map(sort, group(xss)))
+        result = merge(map(sort, join(map(group, xss))))
     else:
-        result = merge(group(map(sort, xss)))
+        result = merge(join(map(group, map(sort, xss))))
 
     write(result, OUTPUT, BASE)
 
