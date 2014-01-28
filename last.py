@@ -6,20 +6,16 @@ Concatenate, interleave or shuffle the tracks.
 
 Usage:
 
-    last.py in1.m3u in2.m3u > out.m3u
-
-Or with the -o option:
-
-    last.py -o out.m3u in1.m3u in2.m3u
+    last.py in1.m3u in2.m3u out.m3u
 
 The -m option can be used to select the merging algorithm.
-The -g option selects the grouping method and the -s option
-selects the sorting. The -b option specifies the base directory.
+The -g option selects the grouping method and the -o option
+selects the ordering. The -b option specifies the base directory.
 
     last.py in1.m3u in2.m3u > out.m3u
     last.py -m shuffle in1.m3u in2.m3u > out.m3u
     last.py -g dir in1.m3u in2.m3u > out.m3u
-    last.py -s none in1.m3u in2.m3u > out.m3u
+    last.py -o none in1.m3u in2.m3u > out.m3u
     last.py -b . in1.m3u in2.m3u > out.m3u
 
 To install, fetch the eyeD3 and bs4 libraries:
@@ -47,8 +43,8 @@ API = ''    # insert key here
 
 MERGE = ''  # merge function
 GROUP = ''  # group function
-SORT = ''   # sort function
-GSORT = ''  # group then sort
+ORDER = ''  # sort function
+GFIRST = '' # group then sort
 BASE = ''   # base directory
 OUTPUT = '' # output file
 
@@ -59,9 +55,11 @@ def load(path):
     else:
         dir = os.path.abspath(os.path.dirname(path))
         file = open(path, 'rU')
-        xs = [os.path.normpath(os.path.join(dir, line.strip()))
-              for line in file if not re.match('^#', line)]
-        file.close
+        try:
+            xs = [os.path.normpath(os.path.join(dir, line.strip()))
+                  for line in file if not re.match('^#', line)]
+        finally:
+            file.close()
     return xs
 
 def loaddirectory(path):
@@ -87,8 +85,10 @@ def write(xs, file=None, base=''):
     print(str)
     if file:
         f = open(file, 'w')
-        f.write(str + '\n')
-        f.close
+        try:
+            f.write(str + '\n')
+        finally:
+            f.close()
 
 def timeout(fn, *args, **kwargs):
     """Call a function with a timeout."""
@@ -357,6 +357,26 @@ def lastfmrating(track, listeners=False):
     rating = lastfmxml if API else lastfmhtml
     return rating(artist, title, listeners)
 
+def lastfmplaycountrating(x):
+    """Return Last.fm playcount."""
+    return lastfmrating(x, True)
+
+def lastfmlistenersrating(x):
+    """Return Last.fm listeners."""
+    return lastfmrating(x, True)
+
+def lastfmproductrating(x):
+    """Return Last.fm playcount times Last.fm listeners."""
+    playcount = lastfmrating(x)
+    listeners = lastfmrating(x, True)
+    return playcount * listeners
+
+def lastfmdivisionrating(x):
+    """Return Last.fm playcount per Last.fm listeners."""
+    playcount = lastfmrating(x)
+    listeners = lastfmrating(x, True)
+    return float(playcount) / float(listeners)
+
 # Merge functions
 
 def join(xss):
@@ -383,7 +403,7 @@ def shufflewindow(m, n, xss):
     """Randomly interleave n tracks from m playlists."""
     return performmerge(xss, m, n, True, False)
 
-def merge5x5(xss):
+def tumble5x5(xss):
     """Merge five artists at a time."""
     return mergewindow(5, 5, xss)
 
@@ -515,15 +535,28 @@ def groupprefix(xs):
 
 def lastfmplaycount(xs):
     """Sort tracks by Last.fm playcount."""
-    return sort(xs, lastfmrating)
+    return sort(xs, lastfmplaycountrating)
 
 def lastfmlisteners(xs):
-    """Sort tracks by Last.fm playcount."""
-    return sort(xs, lambda x: lastfmrating(x, True))
+    """Sort tracks by Last.fm listeners."""
+    return sort(xs, lastfmlistenersrating)
+
+def lastfmproduct(xs):
+    """Sort tracks by Last.fm playcount times Last.fm listeners."""
+    return sort(xs, lastfmproductrating)
+
+def lastfmdivision(xs):
+    """Sort tracks by Last.fm playcount per Last.fm listeners."""
+    return sort(xs, lastfmdivisionrating)
 
 def shuffle(xs):
     """Shuffle a playlist."""
     random.shuffle(xs)
+    return xs
+
+def reverse(xs):
+    """Reverse a playlist."""
+    xs.reverse()
     return xs
 
 # Presets
@@ -546,94 +579,104 @@ def normalizeprefix(xss):
 
 # Aliases
 
-merges = { 'append' : join,
-           'join' : join,
-           'none' : join,
+mergings = { 'append' : join,
+             'join' : join,
+             'none' : join,
 
-           'interleave' : interleave,
+             'interleave' : interleave,
 
-           'shuffle-interleave' : interleaveshuffle,
-           'interleave-shuffle' : interleaveshuffle,
-           'merge-shuffle' : interleaveshuffle,
+             'shuffle-interleave' : interleaveshuffle,
+             'interleave-shuffle' : interleaveshuffle,
+             'merge-shuffle' : interleaveshuffle,
 
-           '5x5merge' : merge5x5,
-           'merge5x5' : merge5x5,
-           'merge' : merge5x5,
+             '5x5merge' : tumble5x5,
+             'merge5x5' : tumble5x5,
+             'tumble' : tumble5x5,
+             'tumbling' : tumble5x5,
 
-           '5x5' : slide5x5,
-           '5x5slide' : slide5x5,
-           'slide5x5' : slide5x5,
-           'slide' : slide5x5,
-           'sliding' : slide5x5,
+             '5x5' : slide5x5,
+             '5x5slide' : slide5x5,
+             'slide5x5' : slide5x5,
+             'slide' : slide5x5,
+             'sliding' : slide5x5,
+             'merge' : slide5x5,
 
-           '5x5shuffle' : shuffle5x5,
-           'shuffle5x5' : shuffle5x5,
-           'shuffle' : shuffle5x5,
+             '5x5shuffle' : shuffle5x5,
+             'shuffle5x5' : shuffle5x5,
+             'shuffle' : shuffle5x5,
 
-           'union' : union,
-           'merge-union' : union,
-           'unique-merge' : union,
-           'unique-interleave' : union,
-           'interleave-unique' : union,
-           'merge-unique' : union,
+             'union' : union,
+             'merge-union' : union,
+             'unique-merge' : union,
+             'unique-interleave' : union,
+             'interleave-unique' : union,
+             'merge-unique' : union,
 
-           'intersection' : intersection,
-           'merge-intersection' : intersection,
-           'intersect' : intersection,
+             'intersection' : intersection,
+             'merge-intersection' : intersection,
+             'intersect' : intersection,
 
-           'symmetric-difference' : symmetricdifference,
+             'symmetric-difference' : symmetricdifference,
 
-           'difference' : difference,
+             'difference' : difference,
 
-           'overlay' : overlay,
-           'overlay-merge' : overlay,
-           'overlay-interleave' : overlay,
-           'interleave-overlay' : overlay,
-           'merge-overlay' : overlay }
+             'overlay' : overlay,
+             'overlay-merge' : overlay,
+             'overlay-interleave' : overlay,
+             'interleave-overlay' : overlay,
+             'merge-overlay' : overlay }
 
-groups = { 'artist' : groupartist,
+groupings = { 'artist' : groupartist,
 
-           'prefix' : groupprefix,
-           'folder' : groupprefix,
-           'directory' : groupprefix,
-           'dir' : groupprefix,
+              'prefix' : groupprefix,
+              'folder' : groupprefix,
+              'directory' : groupprefix,
+              'dir' : groupprefix,
 
-           'none' : performgroup }
+              'none' : performgroup }
 
-sorts = { 'lastfm' : lastfmplaycount,
-          'last.fm' : lastfmplaycount,
-          'last-fm' : lastfmplaycount,
-          'playcount' : lastfmplaycount,
-          'plays' : lastfmplaycount,
+orderings = { 'lastfm' : lastfmplaycount,
+              'last.fm' : lastfmplaycount,
+              'last-fm' : lastfmplaycount,
+              'playcount' : lastfmplaycount,
+              'plays' : lastfmplaycount,
 
-          'listeners' : lastfmlisteners,
-          'listens' : lastfmlisteners,
+              'listeners' : lastfmlisteners,
+              'listens' : lastfmlisteners,
 
-          'random' : shuffle,
-          'randomize' : shuffle,
-          'shuffle' : shuffle,
+              'product' : lastfmproduct,
+              'times' : lastfmproduct,
 
-          'id' : deletedup,
-          'identity' : deletedup,
-          'none' : deletedup }
+              'division' : lastfmdivision,
+              'per' : lastfmdivision,
+
+              'random' : shuffle,
+              'randomize' : shuffle,
+              'shuffle' : shuffle,
+
+              'reverse' : reverse,
+
+              'id' : deletedup,
+              'identity' : deletedup,
+              'none' : deletedup }
 
 # Main function
 
 def main():
-    global API, MERGE, GROUP, SORT, GSORT, BASE, OUTPUT
-    global merges, groups, sorts
+    global API, MERGE, GROUP, ORDER, GFIRST, BASE, OUTPUT
+    global mergings, groupings, orderings
 
     merge = join
     group = performgroup
-    sort = lastfmplaycount
+    order = lastfmplaycount
 
-    opts, args = getopt.getopt(sys.argv[1:], 'a:b:m:g:s:o:',
+    opts, args = getopt.getopt(sys.argv[1:],
+                               'a:b:m:g:o:',
                                ['api=',
                                 'base=',
                                 'merge=',
                                 'group=',
-                                'sort=',
-                                'output='])
+                                'order='])
 
     for o, v in opts:
         if o in ('-a', '--api'):
@@ -642,32 +685,33 @@ def main():
             BASE = v
         if o in ('-m', '--merge'):
             MERGE = v.lower().strip()
-            merge = merges[MERGE]
+            merge = mergings[MERGE]
         elif o in ('-g', '--group'):
             GROUP = v.lower().strip()
-            group = groups[GROUP]
-        elif o in ('-s', '--sort'):
-            SORT = v.lower().strip()
-            sort = sorts[SORT]
-            if GROUP: GSORT = True
-        elif o in ('-o', '--output'):
-            OUTPUT = v
+            group = groupings[GROUP]
+        elif o in ('-o', '--order'):
+            ORDER = v.lower().strip()
+            order = orderings[ORDER]
+            if GROUP: GFIRST = True
+
+    if len(args) > 1:
+        OUTPUT = args.pop()
 
     if MERGE and not GROUP:
         group = groupartist
     if GROUP and not MERGE:
         merge = slide5x5
-    if SORT and (sort != deletedup) and not (MERGE or GROUP):
+    if ORDER and (order != deletedup) and not (MERGE or GROUP):
         merge = slide5x5
         group = groupprefix
 
     xss = map(load, args)
     xss = deletedups(xss)
 
-    if GSORT:
-        result = merge(map(sort, join(map(group, xss))))
+    if GFIRST:
+        result = merge(map(order, join(map(group, xss))))
     else:
-        result = merge(join(map(group, map(sort, xss))))
+        result = merge(join(map(group, map(order, xss))))
 
     write(result, OUTPUT, BASE)
 

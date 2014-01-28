@@ -3,6 +3,8 @@ last.py
 
 Sort MP3 files by Last.fm total plays or listeners.
 
+Turn your backlog into a priority queue.
+
 Installation
 ------------
 
@@ -27,11 +29,9 @@ To sort a folder or a playlist by playcount:
     last.py folder
     last.py playlist.m3u
 
-The output is a new playlist, which can written to a file with the `>`
-operator or the `-o` option:
+The output is a new playlist, which can written to a file:
 
-    last.py playlist.m3u > sorted.m3u
-    last.py -o sorted.m3u playlist.m3u
+    last.py playlist.m3u sorted.m3u
 
 This generally works well for sorting tracks by the same artist. When
 sorting various artists, however, the raw Last.fm ratings tend to
@@ -52,17 +52,17 @@ ID3 tag. A different grouping can be specified with the `-g` option:
 
     last.py -g dir -m shuffle playlist.m3u
 
-This groups the files by folder. To sort by the number of listeners
-instead of the number of plays, use the `-s` option:
+This groups the files by folder. To order by the number of listeners
+instead of the number of plays, use the `-o` option:
 
-    last.py -s listeners -m shuffle playlist.m3u
+    last.py -o listeners -m shuffle playlist.m3u
 
-If `-g` is specified before `-s`, the script will group tracks and
-then sort them; otherwise it will sort tracks before grouping them
-(the default). The `-s` option can also be used to disable Last.fm
-sorting altogether (maybe when processing a presorted list):
+If `-g` is specified before `-o`, the script will group tracks and
+then order them; otherwise it will order tracks before grouping them
+(the default). The `-o` option can also be used to disable sorting
+altogether (maybe when processing a presorted list):
 
-    last.py -s none -m shuffle playlist.m3u
+    last.py -o none -m shuffle playlist.m3u
 
 By default, file paths are absolute. For relative paths, specify the
 base directory with the `-b` option:
