@@ -60,8 +60,8 @@ instead of the number of plays, use the `-o` option:
 You can also order by playcount multiplied by listeners (`product`) or
 playcount divided by listeners (`division`). Furthermore, you can
 order by RateYourMusic (`rateyourmusic`), Pitchfork (`pitchfork`),
-Discogs (`discogs`), AllMusic (`allmusic`) or Spotify (`spotify`)
-rating.
+Discogs (`discogs`), AllMusic (`allmusic`), Spotify (`spotify`) or
+MusicBrainz (`musicbrainz`) rating.
 
 If `-g` is specified before `-o`, the script will group tracks and
 then order them; otherwise it will order tracks before grouping them

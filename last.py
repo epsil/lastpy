@@ -574,6 +574,43 @@ def spotifyxml(artist, title):
         return -1
     return rating
 
+def musicbrainzxml(artist, album):
+    """Fetch an album's MusicBrainz rating."""
+    def release():
+        url = ('http://musicbrainz.org/ws/2/release?query=%s+AND+artist:%s' %
+               (urllib.quote_plus(album), urllib.quote_plus(artist)))
+        try:
+            file = urllib.urlopen(url)
+            try:
+                soup = bs4.BeautifulSoup(file)
+                release = soup.find('release-group')
+                if not release: return ''
+                return release['id']
+            finally:
+                file.close()
+        except IOError:
+            return ''
+        return ''
+    def rating(mbid):
+        if not mbid: return -1
+        url = ('http://musicbrainz.org/ws/2/release-group/%s?inc=ratings' %
+               mbid)
+        try:
+            file = urllib.urlopen(url)
+            try:
+                soup = bs4.BeautifulSoup(file)
+                rating = soup.find('rating')
+                if not rating: return -1
+                return float(rating.get_text())
+            finally:
+                file.close()
+        except IOError:
+            return -1
+        return -1
+    # search for the release, then look up the rating
+    if not artist or not title: return -1
+    return rating(release())
+
 # Cache functions
 lastfmxml = Memoize(lastfmxml)
 lastfmhtml = Memoize(lastfmhtml)
@@ -582,6 +619,7 @@ pitchforkhtml = Memoize(pitchforkhtml)
 discogsjson = Memoize(discogsjson)
 allmusichtml = Memoize(allmusichtml)
 spotifyxml = Memoize(spotifyxml)
+musicbrainzxml = Memoize(musicbrainzxml)
 
 def lastfmrating(track, listeners=False):
     """Return the Last.fm rating for a track."""
@@ -633,6 +671,11 @@ def spotifyrating(track):
     """Return Spotify popularity."""
     tags = id3(track)
     return spotifyxml(tags['artist'], tags['title'])
+
+def musicbrainzrating(track):
+    """Return MusicBrainz rating."""
+    tags = id3(track)
+    return musicbrainzxml(tags['albumartist'], tags['album'])
 
 # Merge functions
 
@@ -837,6 +880,10 @@ def spotify(xs):
     """Sort tracks by Spotify rating."""
     return sort(xs, spotifyrating)
 
+def musicbrainz(xs):
+    """Sort tracks by MusicBrainz rating."""
+    return sort(xs, musicbrainzrating)
+
 def shuffle(xs):
     """Shuffle a playlist."""
     random.shuffle(xs)
@@ -957,6 +1004,9 @@ orderings = { 'lastfm' : lastfmplaycount,
               'amg' : allmusic,
 
               'spotify' : spotify,
+
+              'musicbrainz' : musicbrainz,
+              'mb' : musicbrainz,
 
               'random' : shuffle,
               'randomize' : shuffle,
