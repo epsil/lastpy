@@ -53,6 +53,8 @@ GFIRST = '' # group then sort
 BASE = ''   # base directory
 OUTPUT = '' # output file
 
+urllib.URLopener.version = 'Mozilla/4.0 (compatible; MSIE 5.5; Windows NT 5.0; T312461)'
+
 def load(path):
     """Load a playlist from disk."""
     if os.path.isdir(path):
@@ -377,9 +379,37 @@ def lastfmhtml(artist, title, listeners=False):
         return -1
     return rating
 
+def rateyourmusichtml(artist, album):
+    """Scrape an album's RateYourMusic rating."""
+    def quote(str):
+        str = str.lower().replace(' ', '_').replace("'", '')
+        return urllib.quote_plus(str)
+    if not artist or not album: return -1
+    rating = 0.0
+    url = ('http://rateyourmusic.com/release/album/%s/%s/' %
+           (quote(artist), quote(album)))
+    try:
+        file = urllib.urlopen(url)
+        try:
+            soup = bs4.BeautifulSoup(file)
+            span = soup.find('span', 'avg_rating')
+            if not span: return -1
+            txt = span.get_text()
+            if not txt: return -1
+            match = re.search('[0-9.]+', txt)
+            if not match: return -1
+            txt = match.group()
+            rating = float(txt)
+        finally:
+            file.close()
+    except IOError:
+        return -1
+    return rating
+
 # Cache functions
 lastfmxml = Memoize(lastfmxml)
 lastfmhtml = Memoize(lastfmhtml)
+rateyourmusichtml = Memoize(rateyourmusichtml)
 
 def lastfmrating(track, listeners=False):
     """Return the Last.fm rating for a track."""
@@ -406,6 +436,11 @@ def lastfmdivisionrating(track):
     playcount = lastfmrating(track)
     listeners = lastfmrating(track, True)
     return float(playcount) / float(listeners)
+
+def rateyourmusicrating(track):
+    """Return the RateYourMusic rating for a track."""
+    tags = id3(track)
+    return rateyourmusichtml(tags['albumartist'], tags['album'])
 
 # Merge functions
 
@@ -590,6 +625,10 @@ def lastfmdivision(xs):
     """Sort tracks by Last.fm playcount per Last.fm listeners."""
     return sort(xs, lastfmdivisionrating)
 
+def rateyourmusic(xs):
+    """Sort tracks by RateYourMusic rating."""
+    return sort(xs, rateyourmusicrating)
+
 def shuffle(xs):
     """Shuffle a playlist."""
     random.shuffle(xs)
@@ -697,6 +736,9 @@ orderings = { 'lastfm' : lastfmplaycount,
 
               'division' : lastfmdivision,
               'per' : lastfmdivision,
+
+              'rateyourmusic' : rateyourmusic,
+              'rym' : rateyourmusic,
 
               'random' : shuffle,
               'randomize' : shuffle,
