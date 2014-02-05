@@ -136,6 +136,16 @@ def subrange(xs):
         prev = x
     return (beg, end)
 
+class Memoize:
+    """Memoization wrapper."""
+    def __init__(self, fn):
+        self.fn = fn
+        self.memo = {}
+    def __call__(self, *args):
+        if not args in self.memo:
+            self.memo[args] = self.fn(*args)
+        return self.memo[args]
+
 class RandomGenerator:
     """Fair random generator."""
     def __init__(self):
@@ -350,6 +360,10 @@ def lastfmhtml(artist, track, listeners=False):
     except IOError:
         return -1
     return count
+
+# Cache functions
+lastfmxml = Memoize(lastfmxml)
+lastfmhtml = Memoize(lastfmhtml)
 
 def lastfmrating(track, listeners=False):
     """Return the Last.fm rating for a track."""
