@@ -36,6 +36,7 @@ import subprocess
 import sys
 import time
 import urllib
+import urlparse
 
 # XML/HTML parsing
 import bs4
@@ -406,10 +407,81 @@ def rateyourmusichtml(artist, album):
         return -1
     return rating
 
+def pitchforkhtml(artist, album):
+    """Scrape an album's Pitchfork rating."""
+    def artistpage():
+        url = ('http://pitchfork.com/search/?query=%s&filters=artists' %
+               urllib.quote_plus(artist))
+        try:
+            file = urllib.urlopen(url)
+            try:
+                soup = bs4.BeautifulSoup(file)
+                div = soup.find('div', 'search-group')
+                if not div: return ''
+                li = div.find('li')
+                if not li: return ''
+                a = li.find('a')
+                if not a: return ''
+                url = urlparse.urljoin('http://pitchfork.com/',
+                                       a['href'])
+                return url
+            finally:
+                file.close()
+        except IOError:
+            return ''
+        return ''
+    def albumpage(url):
+        if not url: return ''
+        try:
+            file = urllib.urlopen(url)
+            try:
+                # for elem in soup(text=re.compile(r' #\S{11}')):
+                #     print elem.parent
+                soup = bs4.BeautifulSoup(file)
+                div = soup.find('div', 'search-group')
+                if not div: return ''
+                for li in div.findAll('li'):
+                    a = li.find('a')
+                    h2 = li.find('h2').get_text()
+                    if re.search(re.escape(album), h2, re.IGNORECASE):
+                        url = urlparse.urljoin('http://pitchfork.com/',
+                                               a['href'])
+                        return url
+            finally:
+                file.close()
+        except IOError:
+            return ''
+        return ''
+    def albumrating(url):
+        if not url: return -1
+        try:
+            file = urllib.urlopen(url)
+            try:
+                soup = bs4.BeautifulSoup(file)
+                span = soup.find('span', 'score')
+                if not span: return -1
+                txt = span.get_text()
+                if not txt: return -1
+                match = re.search('[0-9.]+', txt)
+                if not match: return -1
+                txt = match.group()
+                return float(txt)
+            finally:
+                file.close()
+        except IOError:
+            return -1
+        return 0.0
+    # search for the artist's page,
+    # then follow the link to the album's page,
+    # then scrape the rating
+    if not artist or not album: return ''
+    return albumrating(albumpage(artistpage()))
+
 # Cache functions
 lastfmxml = Memoize(lastfmxml)
 lastfmhtml = Memoize(lastfmhtml)
 rateyourmusichtml = Memoize(rateyourmusichtml)
+pitchforkhtml = Memoize(pitchforkhtml)
 
 def lastfmrating(track, listeners=False):
     """Return the Last.fm rating for a track."""
@@ -441,6 +513,11 @@ def rateyourmusicrating(track):
     """Return the RateYourMusic rating for a track."""
     tags = id3(track)
     return rateyourmusichtml(tags['albumartist'], tags['album'])
+
+def pitchforkrating(track):
+    """Return the Pitchfork rating for a track."""
+    tags = id3(track)
+    return pitchforkhtml(tags['albumartist'], tags['album'])
 
 # Merge functions
 
@@ -629,6 +706,10 @@ def rateyourmusic(xs):
     """Sort tracks by RateYourMusic rating."""
     return sort(xs, rateyourmusicrating)
 
+def pitchfork(xs):
+    """Sort tracks by Pitchfork rating."""
+    return sort(xs, pitchforkrating)
+
 def shuffle(xs):
     """Shuffle a playlist."""
     random.shuffle(xs)
@@ -739,6 +820,9 @@ orderings = { 'lastfm' : lastfmplaycount,
 
               'rateyourmusic' : rateyourmusic,
               'rym' : rateyourmusic,
+
+              'pitchfork' : pitchfork,
+              'p4k' : pitchfork,
 
               'random' : shuffle,
               'randomize' : shuffle,
