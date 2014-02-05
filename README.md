@@ -57,6 +57,9 @@ instead of the number of plays, use the `-o` option:
 
     last.py -o listeners -m shuffle playlist.m3u
 
+You can also order by playcount multiplied by listeners (`product`) or
+playcount divided by listeners (`division`).
+
 If `-g` is specified before `-o`, the script will group tracks and
 then order them; otherwise it will order tracks before grouping them
 (the default). The `-o` option can also be used to disable sorting

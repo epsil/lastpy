@@ -67,7 +67,8 @@ def loaddirectory(path):
     files = []
     for root, dirnames, filenames in os.walk(path):
         for filename in fnmatch.filter(filenames, '*.[Mm][Pp]3'):
-            files.append(os.path.join(root, filename))
+            path = os.path.join(root, filename)
+            files.append(os.path.abspath(path))
     files.sort()
     return files
 
@@ -92,9 +93,9 @@ def write(xs, file=None, base=''):
 
 def timeout(fn, *args, **kwargs):
     """Call a function with a timeout."""
-    result = kwargs['fail'] if 'fail' in kwargs else -1
-    retry = kwargs['retry'] if 'retry' in kwargs else 5
-    time = kwargs['time'] if 'time' in kwargs else 30
+    result = kwargs.get('fail', -1)
+    retry = kwargs.get('retry', 5)
+    time = kwargs.get('time', 30)
     pool = multiprocessing.Pool(1, maxtasksperchild=1)
     while retry > 0:
         try:
@@ -108,16 +109,19 @@ def timeout(fn, *args, **kwargs):
     return result
 
 def id3(path):
-    """Return the artist and track title of an MP3 file."""
+    """Return the metadata of an MP3 file."""
+    def trim(str):
+        return unicode(str).encode('utf-8').strip()
+    tags = {'artist': '', 'title': '', 'album': ''}
     try:
         file = eyeD3.Mp3AudioFile(path)
         tag = file.getTag()
-        artist = unicode(tag.getArtist()).encode('utf-8').strip()
-        track = unicode(tag.getTitle()).encode('utf-8').strip()
+        tags['artist'] = trim(tag.getArtist())
+        tags['title'] = trim(tag.getTitle())
+        tags['album'] = trim(tag.getAlbum())
     except:
-        return '', ''
-    else:
-        return artist, track
+        pass
+    return tags
 
 def subrange(xs):
     """Find the lowest contiguous decreasing subrange."""
@@ -286,13 +290,13 @@ def sort(xs, fn):
     num = 1
     result = []
     for x in xs:
-        artist, track = id3(x)
+        tags = id3(x)
         rating = timeout(fn, x)
         rating = rating if rating >= 0 else 0
         result.append((x, fn(x)))
         print('#%s/%s:\t%s\t%s - %s' %
               (str(num).zfill(len(str(total))),
-               total, rating, artist, track))
+               total, rating, tags['artist'], tags['title']))
         # don't make more than 5 requests per second
         # (averaged over a 5 minute period)
         if num % 100 == 0:
@@ -301,18 +305,20 @@ def sort(xs, fn):
     result = sorted(result, key=lambda x: x[1], reverse=True)
     return [x for x, c in result]
 
+# Scraping functions
+
 # requires a valid API key, otherwise lastfmhtml() is used instead
-def lastfmxml(artist, track, listeners=False, correct=True, api=''):
+def lastfmxml(artist, title, listeners=False, correct=True, api=''):
     """Fetch a track's Last.fm playcount."""
-    if not artist or not track: return -1
-    count = 0
+    if not artist or not title: return -1
+    rating = 0
     api = API if not api else api
     correct = 1 if correct else 0
     url = 'http://ws.audioscrobbler.com/2.0/?'
     url += urllib.urlencode([('method',      'track.getInfo'),
                              ('api_key',     api),
                              ('artist',      artist),
-                             ('track',       track),
+                             ('track',       title),
                              ('autocorrect', correct)])
     try:
         file = urllib.urlopen(url)
@@ -322,23 +328,23 @@ def lastfmxml(artist, track, listeners=False, correct=True, api=''):
                 node = soup.find('listeners')
             else:
                 node = soup.find('playcount')
-            if node:
-                txt = node.get_text()
-                if txt:
-                    count = int(txt)
+            if not node: return -1
+            txt = node.get_text()
+            if not txt: return -1
+            rating = int(txt)
         finally:
             file.close()
     except IOError:
         return -1
-    return count
+    return rating
 
 # fall-back: scrape the playcount off the track's webpage
-def lastfmhtml(artist, track, listeners=False):
+def lastfmhtml(artist, title, listeners=False):
     """Scrape a track's Last.fm playcount."""
-    if not artist or not track: return -1
-    count = 0
+    if not artist or not title: return -1
+    rating = 0
     url = ('http://www.last.fm/music/%s/_/%s' %
-           (urllib.quote_plus(artist), urllib.quote_plus(track)))
+           (urllib.quote_plus(artist), urllib.quote_plus(title)))
     try:
         file = urllib.urlopen(url)
         try:
@@ -347,19 +353,19 @@ def lastfmhtml(artist, track, listeners=False):
                 node = soup.find('li', 'listeners')
             else:
                 node = soup.find('li', 'scrobbles')
-            if node:
-                txt = node.get_text()
-                if txt:
-                    match = re.search('[0-9,]+', txt)
-                    if match:
-                        txt = match.group().replace(',', '')
-                        if txt:
-                            count = int(txt)
+            if not node: return -1
+            txt = node.get_text()
+            if not txt: return -1
+            match = re.search('[0-9,]+', txt)
+            if not match: return -1
+            txt = match.group().replace(',', '')
+            if not txt: return -1
+            rating = int(txt)
         finally:
             file.close()
     except IOError:
         return -1
-    return count
+    return rating
 
 # Cache functions
 lastfmxml = Memoize(lastfmxml)
@@ -367,28 +373,28 @@ lastfmhtml = Memoize(lastfmhtml)
 
 def lastfmrating(track, listeners=False):
     """Return the Last.fm rating for a track."""
-    artist, title = id3(track)
+    tags = id3(track)
     rating = lastfmxml if API else lastfmhtml
-    return rating(artist, title, listeners)
+    return rating(tags['artist'], tags['title'], listeners)
 
-def lastfmplaycountrating(x):
+def lastfmplaycountrating(track):
     """Return Last.fm playcount."""
-    return lastfmrating(x, True)
+    return lastfmrating(track, True)
 
-def lastfmlistenersrating(x):
+def lastfmlistenersrating(track):
     """Return Last.fm listeners."""
-    return lastfmrating(x, True)
+    return lastfmrating(track, True)
 
-def lastfmproductrating(x):
+def lastfmproductrating(track):
     """Return Last.fm playcount times Last.fm listeners."""
-    playcount = lastfmrating(x)
-    listeners = lastfmrating(x, True)
+    playcount = lastfmrating(track)
+    listeners = lastfmrating(track, True)
     return playcount * listeners
 
-def lastfmdivisionrating(x):
+def lastfmdivisionrating(track):
     """Return Last.fm playcount per Last.fm listeners."""
-    playcount = lastfmrating(x)
-    listeners = lastfmrating(x, True)
+    playcount = lastfmrating(track)
+    listeners = lastfmrating(track, True)
     return float(playcount) / float(listeners)
 
 # Merge functions
@@ -471,7 +477,13 @@ def intersection(xss):
     """Interleave the intersection of playlists."""
     def intersection2(xs, ys):
         return [x for x in deletedup(xs) if x in ys]
-    return reduce(intersection2, xss, [])
+    return reduce(intersection2, xss) if xss else []
+
+def difference(xss):
+    """Calculate the difference between two playlists."""
+    def diff(xs, ys):
+        return [x for x in deletedup(xs) if x not in ys]
+    return reduce(diff, xss) if xss else []
 
 def symmetricdifference(xss):
     """Interleave the symmetric difference of playlists."""
@@ -488,12 +500,6 @@ def symmetricdifference(xss):
                 x = xs2.pop(0)
                 while x in ys2: ys2.remove(x)
         return result + xs2 + ys2
-    return reduce(diff, xss, [])
-
-def difference(xss):
-    """Calculate the difference between two playlists."""
-    def diff(xs, ys):
-        return [x for x in deletedup(xs) if x not in ys]
     return reduce(diff, xss, [])
 
 def overlay(xss):
@@ -520,7 +526,9 @@ def overlay(xss):
         ys2 = deletedup(ys)
         result = []
         while xs2 and ys2:
-            if ys2[0] not in xs:
+            if xs2[0] not in ys:
+                result.append(xs2.pop(0))
+            elif ys2[0] not in xs:
                 result.append(ys2.pop(0))
             else:
                 ys2.pop(0)
@@ -533,7 +541,7 @@ def overlay(xss):
 def groupartist(xs):
     """Group a playlist on artist."""
     def artist(x):
-        return id3(x)[0]
+        return id3(x)['artist']
     return performgroup(xs, artist)
 
 def groupprefix(xs):
@@ -715,12 +723,8 @@ def main():
         group = groupartist
     if GROUP and not MERGE:
         merge = slide5x5
-    if ORDER and (order != deletedup) and not (MERGE or GROUP):
-        merge = slide5x5
-        group = groupprefix
 
     xss = map(load, args)
-    xss = deletedups(xss)
 
     if GFIRST:
         result = merge(map(order, join(map(group, xss))))
