@@ -28,6 +28,7 @@ Then chmod +x and symlink to /usr/local/bin/last.py.
 
 import fnmatch
 import getopt
+import json
 import multiprocessing
 import os
 import random
@@ -477,11 +478,46 @@ def pitchforkhtml(artist, album):
     if not artist or not album: return ''
     return albumrating(albumpage(artistpage()))
 
+def discogsjson(artist, album):
+    """Fetch an album's Discogs rating."""
+    rating = 0.0
+    def release():
+        url = ('http://api.discogs.com/database/search?q=%s+-+%s' %
+               (urllib.quote_plus(artist), urllib.quote_plus(album)))
+        try:
+            file = urllib.urlopen(url)
+            try:
+                data = json.loads(file.read())
+                # fixme: return most representative release
+                for r in data.get('results', []):
+                    if r['type'] == 'release':
+                        return r['resource_url']
+            finally:
+                file.close()
+        except IOError:
+            return ''
+    def rating(url):
+        if not url: return -1
+        try:
+            file = urllib.urlopen(url)
+            try:
+                data = json.loads(file.read())
+                return data['community']['rating']['average']
+            finally:
+                file.close()
+        except IOError:
+            return -1
+        return 0.0
+    # search for the release, then return the rating
+    if not artist or not album: return -1
+    return rating(release())
+
 # Cache functions
 lastfmxml = Memoize(lastfmxml)
 lastfmhtml = Memoize(lastfmhtml)
 rateyourmusichtml = Memoize(rateyourmusichtml)
 pitchforkhtml = Memoize(pitchforkhtml)
+discogsjson = Memoize(discogsjson)
 
 def lastfmrating(track, listeners=False):
     """Return the Last.fm rating for a track."""
@@ -518,6 +554,11 @@ def pitchforkrating(track):
     """Return the Pitchfork rating for a track."""
     tags = id3(track)
     return pitchforkhtml(tags['albumartist'], tags['album'])
+
+def discogsrating(track):
+    """Return the Discogs rating for a track."""
+    tags = id3(track)
+    return discogsjson(tags['albumartist'], tags['album'])
 
 # Merge functions
 
@@ -710,6 +751,10 @@ def pitchfork(xs):
     """Sort tracks by Pitchfork rating."""
     return sort(xs, pitchforkrating)
 
+def discogs(xs):
+    """Sort tracks by Discogs rating."""
+    return sort(xs, discogsrating)
+
 def shuffle(xs):
     """Shuffle a playlist."""
     random.shuffle(xs)
@@ -823,6 +868,8 @@ orderings = { 'lastfm' : lastfmplaycount,
 
               'pitchfork' : pitchfork,
               'p4k' : pitchfork,
+
+              'discogs' : discogs,
 
               'random' : shuffle,
               'randomize' : shuffle,
