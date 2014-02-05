@@ -553,6 +553,27 @@ def allmusichtml(artist, album):
     if not artist or not album: return -1
     return rating(release())
 
+def spotifyxml(artist, title):
+    """Fetch a track's Spotify popularity."""
+    if not artist or not title: return -1
+    rating = 0.0
+    url = ('http://ws.spotify.com/search/1/track?q=%s+-+%s' %
+           (urllib.quote_plus(artist), urllib.quote_plus(title)))
+    try:
+        file = urllib.urlopen(url)
+        try:
+            soup = bs4.BeautifulSoup(file)
+            track = soup.find('track')
+            if not track: return -1
+            popularity = track.find('popularity')
+            if not popularity: return -1
+            rating = float(popularity.get_text())
+        finally:
+            file.close()
+    except IOError:
+        return -1
+    return rating
+
 # Cache functions
 lastfmxml = Memoize(lastfmxml)
 lastfmhtml = Memoize(lastfmhtml)
@@ -560,6 +581,7 @@ rateyourmusichtml = Memoize(rateyourmusichtml)
 pitchforkhtml = Memoize(pitchforkhtml)
 discogsjson = Memoize(discogsjson)
 allmusichtml = Memoize(allmusichtml)
+spotifyxml = Memoize(spotifyxml)
 
 def lastfmrating(track, listeners=False):
     """Return the Last.fm rating for a track."""
@@ -606,6 +628,11 @@ def allmusicrating(track):
     """Return the AllMusic rating for a track."""
     tags = id3(track)
     return allmusichtml(tags['albumartist'], tags['album'])
+
+def spotifyrating(track):
+    """Return Spotify popularity."""
+    tags = id3(track)
+    return spotifyxml(tags['artist'], tags['title'])
 
 # Merge functions
 
@@ -806,6 +833,10 @@ def allmusic(xs):
     """Sort tracks by AllMusic rating."""
     return sort(xs, allmusicrating)
 
+def spotify(xs):
+    """Sort tracks by Spotify rating."""
+    return sort(xs, spotifyrating)
+
 def shuffle(xs):
     """Shuffle a playlist."""
     random.shuffle(xs)
@@ -924,6 +955,8 @@ orderings = { 'lastfm' : lastfmplaycount,
 
               'allmusic' : allmusic,
               'amg' : allmusic,
+
+              'spotify' : spotify,
 
               'random' : shuffle,
               'randomize' : shuffle,
