@@ -8,9 +8,9 @@ Turn your backlog into a priority queue.
 Installation
 ------------
 
-`last.py` requires the `eyeD3` and `bs4` libraries:
+`last.py` requires the `mutagen` and `bs4` libraries:
 
-    pip install eyeD3-pip      # or: sudo apt-get install eyed3
+    pip install mutagen
     pip install beautifulsoup4
 
 Then make the script executable and copy it to a suitable location in

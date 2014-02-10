@@ -18,9 +18,9 @@ selects the ordering. The -b option specifies the base directory.
     last.py -o none in1.m3u in2.m3u > out.m3u
     last.py -b . in1.m3u in2.m3u > out.m3u
 
-To install, fetch the eyeD3 and bs4 libraries:
+To install, fetch the mutagen and bs4 libraries:
 
-    pip install eyeD3-pip      # or: sudo apt-get install eyed3
+    pip install mutagen
     pip install beautifulsoup4
 
 Then chmod +x and symlink to /usr/local/bin/last.py.
@@ -36,8 +36,13 @@ import subprocess
 import sys
 import time
 import urllib
-import eyeD3 # ID3 reading
-import bs4   # XML/HTML parsing
+
+# XML/HTML parsing
+import bs4
+
+# ID3 reading
+from mutagen.easyid3 import EasyID3
+from mutagen.id3 import ID3
 
 API = ''    # insert key here
 
@@ -110,18 +115,22 @@ def timeout(fn, *args, **kwargs):
 
 def id3(path):
     """Return the metadata of an MP3 file."""
-    def trim(str):
+    def utf8(str):
         return unicode(str).encode('utf-8').strip()
-    tags = {'artist': '', 'title': '', 'album': ''}
+    meta = {'artist': '', 'title': '', 'album': '', 'albumartist' : ''}
     try:
-        file = eyeD3.Mp3AudioFile(path)
-        tag = file.getTag()
-        tags['artist'] = trim(tag.getArtist())
-        tags['title'] = trim(tag.getTitle())
-        tags['album'] = trim(tag.getAlbum())
+        tags = EasyID3(path)
+        tags2 = ID3(path)
+        meta['artist'] = tags.get('artist', [''])[0]
+        meta['title'] = tags.get('title', [''])[0]
+        meta['album'] = tags.get('album', [''])[0]
+        meta['albumartist'] = tags2.get('TPE2', [''])[0]
+        meta = {key: utf8(meta[key]) for key in meta}
+        meta['artist'] = meta['artist'] or meta['albumartist']
+        meta['albumartist'] = meta['albumartist'] or meta['artist']
     except:
         pass
-    return tags
+    return meta
 
 def subrange(xs):
     """Find the lowest contiguous decreasing subrange."""
