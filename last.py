@@ -611,6 +611,36 @@ def musicbrainzxml(artist, album):
     if not artist or not title: return -1
     return rating(release())
 
+def metacritichtml(artist, album, users=False):
+    """Scrape an album's Metacritic rating."""
+    def quote(str):
+        str = str.lower().replace(' ', '-')
+        return urllib.quote_plus(str)
+    url = 'http://www.metacritic.com/person/%s' % quote(artist)
+    try:
+        file = urllib.urlopen(url)
+        try:
+            soup = bs4.BeautifulSoup(file)
+            table = soup.find('table', 'credits')
+            if not table: return -1
+            tbody = table.find('tbody')
+            if not tbody: return -1
+            for tr in tbody.findAll('tr'):
+                td = tr.find('td', 'title')
+                title = td.find('a').get_text()
+                if re.search(re.escape(album), title, re.IGNORECASE):
+                    if users:
+                        rating = tr.find('td', 'score')
+                        return float(rating.get_text())
+                    else:
+                        rating = td.find('span', 'metascore_w')
+                        return int(rating.get_text())
+        finally:
+            file.close()
+    except IOError:
+        return -1
+    return -1
+
 # Cache functions
 lastfmxml = Memoize(lastfmxml)
 lastfmhtml = Memoize(lastfmhtml)
@@ -620,6 +650,7 @@ discogsjson = Memoize(discogsjson)
 allmusichtml = Memoize(allmusichtml)
 spotifyxml = Memoize(spotifyxml)
 musicbrainzxml = Memoize(musicbrainzxml)
+metacritichtml = Memoize(metacritichtml)
 
 def lastfmrating(track, listeners=False):
     """Return the Last.fm rating for a track."""
@@ -676,6 +707,16 @@ def musicbrainzrating(track):
     """Return MusicBrainz rating."""
     tags = id3(track)
     return musicbrainzxml(tags['albumartist'], tags['album'])
+
+def metacriticrating(track):
+    """Return Metacritic rating."""
+    tags = id3(track)
+    return metacritichtml(tags['albumartist'], tags['album'])
+
+def metacriticrating2(track):
+    """Return Metacritic user rating."""
+    tags = id3(track)
+    return metacritichtml(tags['albumartist'], tags['album'], True)
 
 # Merge functions
 
@@ -884,6 +925,14 @@ def musicbrainz(xs):
     """Sort tracks by MusicBrainz rating."""
     return sort(xs, musicbrainzrating)
 
+def metacritic(xs):
+    """Sort tracks by Metacritic rating."""
+    return sort(xs, metacriticrating)
+
+def metacritic2(xs):
+    """Sort tracks by Metacritic user rating."""
+    return sort(xs, metacriticrating2)
+
 def shuffle(xs):
     """Shuffle a playlist."""
     random.shuffle(xs)
@@ -1007,6 +1056,9 @@ orderings = { 'lastfm' : lastfmplaycount,
 
               'musicbrainz' : musicbrainz,
               'mb' : musicbrainz,
+
+              'metacritic' : metacritic,
+              'metacritic2' : metacritic2,
 
               'random' : shuffle,
               'randomize' : shuffle,
