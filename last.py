@@ -264,15 +264,16 @@ def performmerge(xss, window, pick, rand=False, fair=True):
 
 def performgroup(xs, key=None):
     """Group a playlist into several."""
-    dict = []
-    key = key if key else lambda x: [x]
+    dict = [] # use a list to preserve order
+    keyfn = key if key else lambda x: 0
     for x in deletedup(xs):
-        k = key(x)
-        if k in map(lambda x: x[0], dict):
-            dict = [(k, xs + [x]) if k == k0 else (k0, xs)
-                    for k0, xs in dict]
+        key = keyfn(x)
+        for k, xs in dict:
+            if k == key:
+                xs.append(x)
+                break
         else:
-            dict.append((k, [x]))
+            dict.append((key, [x]))
     return [xs for k, xs in dict]
 
 def deletedup(xs):
@@ -553,14 +554,23 @@ def groupartist(xs):
         return id3(x)['artist']
     return performgroup(xs, artist)
 
-def groupprefix(xs):
-    """Group a playlist on string prefix."""
-    pre = os.path.commonprefix(xs)
-    def prefix(x):
-        regexp = '^%s([^/]+)' % re.escape(pre)
+def groupdir(xs):
+    """Group a playlist on directory."""
+    prefix = os.path.commonprefix(xs)
+    def dir(x):
+        regexp = '^%s([^/]+)' % re.escape(prefix)
         match = re.match(regexp, x)
         return match.group(1) if match else ''
-    return performgroup(xs, prefix)
+    return performgroup(xs, dir)
+
+def groupdir2(xs):
+    """Group a playlist on subdirectory."""
+    prefix = os.path.commonprefix(xs)
+    def dir(x):
+        regexp = '^%s([^/]+/[^/]+)' % re.escape(prefix)
+        match = re.match(regexp, x)
+        return match.group(1) if match else ''
+    return performgroup(xs, dir)
 
 # Sort functions
 
@@ -598,7 +608,7 @@ def norm(xss):
 
 def normprefix(xss):
     """"Normalize" a mixed playlist by merging five playlists at a time."""
-    return slide5x5(groupprefix(xss))
+    return slide5x5(groupdir(xss))
 
 def normalize(xss):
     """Sort tracks by Last.fm playcount and normalize the playlist."""
@@ -659,10 +669,17 @@ mergings = { 'append' : join,
 
 groupings = { 'artist' : groupartist,
 
-              'prefix' : groupprefix,
-              'folder' : groupprefix,
-              'directory' : groupprefix,
-              'dir' : groupprefix,
+              'prefix' : groupdir,
+              'folder' : groupdir,
+              'directory' : groupdir,
+              'dir' : groupdir,
+
+              'prefix2' : groupdir2,
+              'folder2' : groupdir2,
+              'directory2' : groupdir2,
+              'subdirectory' : groupdir2,
+              'sub' : groupdir2,
+              'dir2' : groupdir2,
 
               'none' : performgroup }
 
