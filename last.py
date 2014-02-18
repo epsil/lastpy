@@ -303,7 +303,7 @@ def sort(xs, fn):
         tags = id3(x)
         rating = timeout(fn, x)
         rating = rating if rating >= 0 else 0
-        result.append((x, fn(x)))
+        result.append((x, rating))
         print('#%s/%s:\t%s\t%s - %s' %
               (str(num).zfill(len(str(total))),
                total, rating, tags['artist'], tags['title']))

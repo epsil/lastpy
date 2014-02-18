@@ -10,8 +10,85 @@ import unittest
 class TestFunctions(unittest.TestCase):
     def testjoin(self):
         """Test join."""
-        self.assertEqual(last.join([['f1', 'f2'], ['f3']]),
-                         ['f1', 'f2', 'f3'])
+        self.assertEqual(last.join([['1', '2'], ['3']]),
+                         ['1', '2', '3'])
+
+    def testunion(self):
+        """Test union."""
+        self.assertEqual(last.union([]),
+                         [])
+        self.assertEqual(last.union([[], []]),
+                         [])
+        self.assertEqual(last.union([['1'], []]),
+                         ['1'])
+        self.assertEqual(last.union([[], ['1']]),
+                         ['1'])
+        self.assertEqual(last.union([['1', '2'], ['3']]),
+                         ['1', '2', '3'])
+        self.assertEqual(last.union([['1', '2'], ['2', '3']]),
+                         ['1', '2', '3'])
+
+    def testintersection(self):
+        """Test intersection."""
+        self.assertEqual(last.intersection([]),
+                         [])
+        self.assertEqual(last.intersection([[], []]),
+                         [])
+        self.assertEqual(last.intersection([['1'], []]),
+                         [])
+        self.assertEqual(last.intersection([[], ['1']]),
+                         [])
+        self.assertEqual(last.intersection([['1', '2'], ['3']]),
+                         [])
+        self.assertEqual(last.intersection([['1', '2'], ['2', '3']]),
+                         ['2'])
+
+    def testdifference(self):
+        """Test difference."""
+        self.assertEqual(last.difference([]),
+                         [])
+        self.assertEqual(last.difference([[], []]),
+                         [])
+        self.assertEqual(last.difference([['1'], []]),
+                         ['1'])
+        self.assertEqual(last.difference([[], ['1']]),
+                         [])
+        self.assertEqual(last.difference([['1', '2'], ['3']]),
+                         ['1', '2'])
+        self.assertEqual(last.difference([['1', '2'], ['2', '3']]),
+                         ['1'])
+
+    def testsymmetricdifference(self):
+        """Test symmetric difference."""
+        self.assertEqual(last.symmetricdifference([]),
+                         [])
+        self.assertEqual(last.symmetricdifference([[], []]),
+                         [])
+        self.assertEqual(last.symmetricdifference([['1'], []]),
+                         ['1'])
+        self.assertEqual(last.symmetricdifference([[], ['1']]),
+                         ['1'])
+        self.assertEqual(last.symmetricdifference([['1', '2'], ['3']]),
+                         ['1', '2', '3'])
+        self.assertEqual(last.symmetricdifference([['1', '2'], ['2', '3']]),
+                         ['1', '3'])
+
+    def testoverlay(self):
+        """Test overlay."""
+        self.assertEqual(last.overlay([]),
+                         [])
+        self.assertEqual(last.overlay([[], []]),
+                         [])
+        self.assertEqual(last.overlay([['1'], []]),
+                         ['1'])
+        self.assertEqual(last.overlay([[], ['1']]),
+                         ['1'])
+        self.assertEqual(last.overlay([['1', '2'], ['3']]),
+                         ['1', '2', '3'])
+        self.assertEqual(last.overlay([['1', '2'], ['2', '3']]),
+                         ['1', '2', '3'])
+        self.assertEqual(last.overlay([['1', '3'], ['2', '3']]),
+                         ['1', '2', '3'])
 
     def testrange(self):
         """Test subrange."""
@@ -35,6 +112,28 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(last.subrange([1, 2, 3, 4, 5]), (0, 1)) # [1]
         self.assertEqual(last.subrange([2, 2, 3, 4, 5]), (0, 1)) # [2]
         self.assertEqual(last.subrange([3, 2, 3, 4, 5]), (0, 2)) # [3, 2]
+
+    def testgroupdir(self):
+        """Test groupdir."""
+        self.assertEqual(last.groupdir([]),
+                         [])
+        self.assertEqual(last.groupdir(['1']),
+                         [['1']])
+        self.assertEqual(last.groupdir(['1/2', '3/4']),
+                         [['1/2'], ['3/4']])
+        self.assertEqual(last.groupdir(['1/2', '1/3', '3/4']),
+                         [['1/2', '1/3'], ['3/4']])
+
+    def testgroupdir2(self):
+        """Test groupdir2."""
+        self.assertEqual(last.groupdir2([]),
+                         [])
+        self.assertEqual(last.groupdir2(['1']),
+                         [['1']])
+        self.assertEqual(last.groupdir2(['1/2/3', '3/4/5']),
+                         [['1/2/3'], ['3/4/5']])
+        self.assertEqual(last.groupdir2(['1/2/3', '1/2/4', '3/4/5']),
+                         [['1/2/3', '1/2/4'], ['3/4/5']])
 
     def testmerge(self):
         """Test performmerge."""
