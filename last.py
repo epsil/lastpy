@@ -307,7 +307,7 @@ def sort(xs, fn):
         tags = id3(x)
         rating = timeout(fn, x)
         rating = rating if rating >= 0 else 0
-        result.append((x, fn(x)))
+        result.append((x, rating))
         print('#%s/%s:\t%s\t%s - %s' %
               (str(num).zfill(len(str(total))),
                total, rating, tags['artist'], tags['title']))
@@ -718,6 +718,92 @@ def metacriticrating2(track):
     tags = id3(track)
     return metacritichtml(tags['albumartist'], tags['album'], True)
 
+# Sort functions
+
+def lastfmplaycount(xs):
+    """Sort tracks by Last.fm playcount."""
+    return sort(xs, lastfmplaycountrating)
+
+def lastfmlisteners(xs):
+    """Sort tracks by Last.fm listeners."""
+    return sort(xs, lastfmlistenersrating)
+
+def lastfmproduct(xs):
+    """Sort tracks by Last.fm playcount times Last.fm listeners."""
+    return sort(xs, lastfmproductrating)
+
+def lastfmdivision(xs):
+    """Sort tracks by Last.fm playcount per Last.fm listeners."""
+    return sort(xs, lastfmdivisionrating)
+
+def rateyourmusic(xs):
+    """Sort tracks by RateYourMusic rating."""
+    return sort(xs, rateyourmusicrating)
+
+def pitchfork(xs):
+    """Sort tracks by Pitchfork rating."""
+    return sort(xs, pitchforkrating)
+
+def discogs(xs):
+    """Sort tracks by Discogs rating."""
+    return sort(xs, discogsrating)
+
+def allmusic(xs):
+    """Sort tracks by AllMusic rating."""
+    return sort(xs, allmusicrating)
+
+def spotify(xs):
+    """Sort tracks by Spotify rating."""
+    return sort(xs, spotifyrating)
+
+def musicbrainz(xs):
+    """Sort tracks by MusicBrainz rating."""
+    return sort(xs, musicbrainzrating)
+
+def metacritic(xs):
+    """Sort tracks by Metacritic rating."""
+    return sort(xs, metacriticrating)
+
+def metacritic2(xs):
+    """Sort tracks by Metacritic user rating."""
+    return sort(xs, metacriticrating2)
+
+def shuffle(xs):
+    """Shuffle a playlist."""
+    random.shuffle(xs)
+    return xs
+
+def reverse(xs):
+    """Reverse a playlist."""
+    xs.reverse()
+    return xs
+
+# Group functions
+
+def groupartist(xs):
+    """Group a playlist on artist."""
+    def artist(x):
+        return id3(x)['artist']
+    return performgroup(xs, artist)
+
+def groupdir(xs):
+    """Group a playlist on directory."""
+    prefix = os.path.commonprefix(xs)
+    def dir(x):
+        regexp = '^%s([^/]+)' % re.escape(prefix)
+        match = re.match(regexp, x)
+        return match.group(1) if match else ''
+    return performgroup(xs, dir)
+
+def groupdir2(xs):
+    """Group a playlist on subdirectory."""
+    prefix = os.path.commonprefix(xs)
+    def dir(x):
+        regexp = '^%s([^/]+/[^/]+)' % re.escape(prefix)
+        match = re.match(regexp, x)
+        return match.group(1) if match else ''
+    return performgroup(xs, dir)
+
 # Merge functions
 
 def join(xss):
@@ -856,92 +942,6 @@ def overlay(xss):
                 result.append(xs2.pop(0))
         return result + xs2 + ys2
     return reduce(overlay2, xss, [])
-
-# Group functions
-
-def groupartist(xs):
-    """Group a playlist on artist."""
-    def artist(x):
-        return id3(x)['artist']
-    return performgroup(xs, artist)
-
-def groupdir(xs):
-    """Group a playlist on directory."""
-    prefix = os.path.commonprefix(xs)
-    def dir(x):
-        regexp = '^%s([^/]+)' % re.escape(prefix)
-        match = re.match(regexp, x)
-        return match.group(1) if match else ''
-    return performgroup(xs, dir)
-
-def groupdir2(xs):
-    """Group a playlist on subdirectory."""
-    prefix = os.path.commonprefix(xs)
-    def dir(x):
-        regexp = '^%s([^/]+/[^/]+)' % re.escape(prefix)
-        match = re.match(regexp, x)
-        return match.group(1) if match else ''
-    return performgroup(xs, dir)
-
-# Sort functions
-
-def lastfmplaycount(xs):
-    """Sort tracks by Last.fm playcount."""
-    return sort(xs, lastfmplaycountrating)
-
-def lastfmlisteners(xs):
-    """Sort tracks by Last.fm listeners."""
-    return sort(xs, lastfmlistenersrating)
-
-def lastfmproduct(xs):
-    """Sort tracks by Last.fm playcount times Last.fm listeners."""
-    return sort(xs, lastfmproductrating)
-
-def lastfmdivision(xs):
-    """Sort tracks by Last.fm playcount per Last.fm listeners."""
-    return sort(xs, lastfmdivisionrating)
-
-def rateyourmusic(xs):
-    """Sort tracks by RateYourMusic rating."""
-    return sort(xs, rateyourmusicrating)
-
-def pitchfork(xs):
-    """Sort tracks by Pitchfork rating."""
-    return sort(xs, pitchforkrating)
-
-def discogs(xs):
-    """Sort tracks by Discogs rating."""
-    return sort(xs, discogsrating)
-
-def allmusic(xs):
-    """Sort tracks by AllMusic rating."""
-    return sort(xs, allmusicrating)
-
-def spotify(xs):
-    """Sort tracks by Spotify rating."""
-    return sort(xs, spotifyrating)
-
-def musicbrainz(xs):
-    """Sort tracks by MusicBrainz rating."""
-    return sort(xs, musicbrainzrating)
-
-def metacritic(xs):
-    """Sort tracks by Metacritic rating."""
-    return sort(xs, metacriticrating)
-
-def metacritic2(xs):
-    """Sort tracks by Metacritic user rating."""
-    return sort(xs, metacriticrating2)
-
-def shuffle(xs):
-    """Shuffle a playlist."""
-    random.shuffle(xs)
-    return xs
-
-def reverse(xs):
-    """Reverse a playlist."""
-    xs.reverse()
-    return xs
 
 # Presets
 
