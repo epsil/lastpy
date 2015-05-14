@@ -838,6 +838,14 @@ def slide5x5(xss):
     """Slide five artists at a time."""
     return slidingwindow(5, 5, xss)
 
+def tumble1x5(xss):
+    """Merge one track from five artists."""
+    return mergewindow(1, 5, xss)
+
+def tumble5x1(xss):
+    """Merge five tracks from one artist."""
+    return mergewindow(5, 1, xss)
+
 def shuffle5x5(xss):
     """Shuffle five artists at a time."""
     return shufflewindow(5, 5, xss)
@@ -979,6 +987,8 @@ mergings = { 'append' : join,
              'tumbling' : tumble5x5,
 
              '5x5' : slide5x5,
+             '5x1' : tumble5x1,
+             '1x5' : tumble1x5,
              '5x5slide' : slide5x5,
              'slide5x5' : slide5x5,
              'slide' : slide5x5,
