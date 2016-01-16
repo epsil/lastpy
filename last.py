@@ -337,7 +337,7 @@ def lastfmxml(artist, title, listeners=False, correct=True, api=''):
     try:
         file = urllib.urlopen(url)
         try:
-            soup = bs4.BeautifulSoup(file)
+            soup = bs4.BeautifulSoup(file, 'html.parser')
             if listeners:
                 node = soup.find('listeners')
             else:
@@ -362,7 +362,7 @@ def lastfmhtml(artist, title, listeners=False):
     try:
         file = urllib.urlopen(url)
         try:
-            soup = bs4.BeautifulSoup(file)
+            soup = bs4.BeautifulSoup(file, 'html.parser')
             if listeners:
                 node = soup.find('li', 'listeners')
             else:
@@ -393,7 +393,7 @@ def rateyourmusichtml(artist, album):
     try:
         file = urllib.urlopen(url)
         try:
-            soup = bs4.BeautifulSoup(file)
+            soup = bs4.BeautifulSoup(file, 'html.parser')
             span = soup.find('span', 'avg_rating')
             if not span: return -1
             txt = span.get_text()
@@ -416,7 +416,7 @@ def pitchforkhtml(artist, album):
         try:
             file = urllib.urlopen(url)
             try:
-                soup = bs4.BeautifulSoup(file)
+                soup = bs4.BeautifulSoup(file, 'html.parser')
                 div = soup.find('div', 'search-group')
                 if not div: return ''
                 li = div.find('li')
@@ -438,7 +438,7 @@ def pitchforkhtml(artist, album):
             try:
                 # for elem in soup(text=re.compile(r' #\S{11}')):
                 #     print elem.parent
-                soup = bs4.BeautifulSoup(file)
+                soup = bs4.BeautifulSoup(file, 'html.parser')
                 div = soup.find('div', 'search-group')
                 if not div: return ''
                 for li in div.findAll('li'):
@@ -458,7 +458,7 @@ def pitchforkhtml(artist, album):
         try:
             file = urllib.urlopen(url)
             try:
-                soup = bs4.BeautifulSoup(file)
+                soup = bs4.BeautifulSoup(file, 'html.parser')
                 span = soup.find('span', 'score')
                 if not span: return -1
                 txt = span.get_text()
@@ -521,7 +521,7 @@ def allmusichtml(artist, album):
         try:
             file = urllib.urlopen(url)
             try:
-                soup = bs4.BeautifulSoup(file)
+                soup = bs4.BeautifulSoup(file, 'html.parser')
                 li = soup.find('li', 'album')
                 if not li: return ''
                 a = li.find('a')
@@ -538,7 +538,7 @@ def allmusichtml(artist, album):
         try:
             file = urllib.urlopen(url)
             try:
-                soup = bs4.BeautifulSoup(file)
+                soup = bs4.BeautifulSoup(file, 'html.parser')
                 div = soup.find('div', 'allmusic-rating')
                 if not div: return -1
                 txt = div.get_text()
@@ -562,7 +562,7 @@ def spotifyxml(artist, title):
     try:
         file = urllib.urlopen(url)
         try:
-            soup = bs4.BeautifulSoup(file)
+            soup = bs4.BeautifulSoup(file, 'html.parser')
             track = soup.find('track')
             if not track: return -1
             popularity = track.find('popularity')
@@ -582,7 +582,7 @@ def musicbrainzxml(artist, album):
         try:
             file = urllib.urlopen(url)
             try:
-                soup = bs4.BeautifulSoup(file)
+                soup = bs4.BeautifulSoup(file, 'html.parser')
                 release = soup.find('release-group')
                 if not release: return ''
                 return release['id']
@@ -598,7 +598,7 @@ def musicbrainzxml(artist, album):
         try:
             file = urllib.urlopen(url)
             try:
-                soup = bs4.BeautifulSoup(file)
+                soup = bs4.BeautifulSoup(file, 'html.parser')
                 rating = soup.find('rating')
                 if not rating: return -1
                 return float(rating.get_text())
@@ -620,7 +620,7 @@ def metacritichtml(artist, album, users=False):
     try:
         file = urllib.urlopen(url)
         try:
-            soup = bs4.BeautifulSoup(file)
+            soup = bs4.BeautifulSoup(file, 'html.parser')
             table = soup.find('table', 'credits')
             if not table: return -1
             tbody = table.find('tbody')
