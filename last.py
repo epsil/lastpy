@@ -362,13 +362,17 @@ def lastfmhtml(artist, title, listeners=False):
     try:
         file = urllib.urlopen(url)
         try:
-            soup = bs4.BeautifulSoup(file, 'html.parser')
+            soup = bs4.BeautifulSoup(file, "html.parser")
+            div = soup.find('div', 'header-metadata-global-stats')
+            if not div: return -1
+            abbr = div.findAll('abbr')
+            if not abbr: return -1
             if listeners:
-                node = soup.find('li', 'listeners')
+                node = abbr[1]
             else:
-                node = soup.find('li', 'scrobbles')
+                node = abbr[0]
             if not node: return -1
-            txt = node.get_text()
+            txt = node['title']
             if not txt: return -1
             match = re.search('[0-9,]+', txt)
             if not match: return -1
@@ -660,7 +664,7 @@ def lastfmrating(track, listeners=False):
 
 def lastfmplaycountrating(track):
     """Return Last.fm playcount."""
-    return lastfmrating(track, True)
+    return lastfmrating(track, False)
 
 def lastfmlistenersrating(track):
     """Return Last.fm listeners."""
