@@ -1,9 +1,9 @@
 last.py
 =======
 
-Sort MP3 files by Last.fm total plays or listeners.
-
-Turn your backlog into a priority queue.
+> Sort MP3 files by Last.fm total plays or listeners.
+>
+> Turn your backlog into a priority queue.
 
 Installation
 ------------
